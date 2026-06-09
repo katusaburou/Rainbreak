@@ -40,6 +40,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri -> target
+          # タグ実行では保存しない（Windows の post cache 保存フレーク回避）。
+          save-if: false
 
       - run: pnpm install --frozen-lockfile
 

@@ -7,6 +7,7 @@
 		onPhaseChanged,
 		onIncomingProgress,
 		onConfigChanged,
+		getConfig,
 		skipBreak,
 		type Phase
 	} from '$lib/ipc';
@@ -80,6 +81,15 @@
 		rain = new RainRenderer({ fpsCap: 30, reducedMotion: reduced });
 		await rain.init(canvas, { backgroundUrl: '/bg/default.png', reducedMotion: reduced });
 		audio = new RainAudio();
+		// 保存済みの音量／ミュートを初回の通り雨より前に反映する
+		// （config-changed を待たず、起動直後の最初の休憩でも設定が効くように）。
+		try {
+			const cfg = await getConfig();
+			audio.setVolume(cfg.volume);
+			audio.setMuted(cfg.muted);
+		} catch {
+			// Tauri 外（ブラウザプレビュー）では既定値のまま。
+		}
 
 		unlisten.push(await onPhaseChanged((p) => applyPhase(p.phase)));
 		unlisten.push(

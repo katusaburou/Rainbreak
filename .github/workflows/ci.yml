@@ -2,8 +2,13 @@ name: ci
 
 on:
   push:
-    branches: [main, 'claude/**']
+    branches: [main]
   pull_request:
+
+# 同一 PR/ブランチの古い実行はキャンセルし、push と pull_request の二重起動も防ぐ。
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   # 時間の真実（状態機械）の単体テスト。webkit 不要。
@@ -15,6 +20,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: crates/core -> target
+          # PR/タグ実行では保存しない（Windows の post cache 保存フレーク回避）。
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - run: cargo test --manifest-path crates/core/Cargo.toml
 
   # フロント（SvelteKit SPA）の型チェックと静的ビルド。
@@ -54,6 +61,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri -> target
+          # PR/タグ実行では保存しない（Windows の post cache 保存フレーク回避）。
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - run: pnpm install --frozen-lockfile
       - run: node tools/gen-assets.mjs
       - run: pnpm tauri icon app-icon.png
