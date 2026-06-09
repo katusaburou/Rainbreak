@@ -1,0 +1,79 @@
+{
+	"$schema": "https://schema.tauri.app/config/2",
+	"productName": "Rainbreak",
+	"version": "0.1.0",
+	"identifier": "dev.rainbreak.app",
+	"build": {
+		"frontendDist": "../build",
+		"devUrl": "http://localhost:5173",
+		"beforeDevCommand": "pnpm dev",
+		"beforeBuildCommand": "pnpm build"
+	},
+	"app": {
+		"macOSPrivateApi": true,
+		"withGlobalTauri": false,
+		"security": {
+			"csp": null
+		},
+		"windows": [
+			{
+				"label": "overlay",
+				"url": "/overlay",
+				"title": "雨やどり overlay",
+				"width": 1280,
+				"height": 800,
+				"transparent": true,
+				"decorations": false,
+				"alwaysOnTop": false,
+				"visible": false,
+				"skipTaskbar": true,
+				"resizable": false,
+				"shadow": false,
+				"focus": false,
+				"fullscreen": false
+			},
+			{
+				"label": "hud",
+				"url": "/hud",
+				"title": "雨やどり hud",
+				"width": 260,
+				"height": 64,
+				"transparent": true,
+				"decorations": false,
+				"alwaysOnTop": true,
+				"visible": false,
+				"skipTaskbar": true,
+				"resizable": false,
+				"shadow": false,
+				"focus": false
+			},
+			{
+				"label": "settings",
+				"url": "/settings",
+				"title": "雨やどり 設定",
+				"width": 460,
+				"height": 470,
+				"decorations": true,
+				"alwaysOnTop": false,
+				"visible": false,
+				"skipTaskbar": false,
+				"resizable": false
+			}
+		]
+	},
+	"bundle": {
+		"active": true,
+		"targets": ["dmg", "nsis"],
+		"icon": [
+			"icons/32x32.png",
+			"icons/128x128.png",
+			"icons/128x128@2x.png",
+			"icons/icon.icns",
+			"icons/icon.ico"
+		],
+		"category": "Productivity",
+		"shortDescription": "雨やどり — 通り雨で休む作業タイマー",
+		"longDescription": "ポモドーロ型の作業タイマー × 窓ガラスを流れる雨のアンビエント表現。集中中は隅の穏やかなバーだけが残り時間を伝え、休憩前から雨が徐々に強まる。"
+	},
+	"plugins": {}
+}

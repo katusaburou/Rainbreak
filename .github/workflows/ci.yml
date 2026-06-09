@@ -1,0 +1,61 @@
+name: ci
+
+on:
+  push:
+    branches: [main, 'claude/**']
+  pull_request:
+
+jobs:
+  # 時間の真実（状態機械）の単体テスト。webkit 不要。
+  core:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: crates/core -> target
+      - run: cargo test --manifest-path crates/core/Cargo.toml
+
+  # フロント（SvelteKit SPA）の型チェックと静的ビルド。
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: node tools/gen-assets.mjs
+      - run: pnpm run check
+      - run: pnpm run build
+
+  # Tauri シェルのコンパイル検証（macOS / Windows は webkit 不要）。
+  app-build:
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+      - run: pnpm install --frozen-lockfile
+      - run: node tools/gen-assets.mjs
+      - run: pnpm tauri icon app-icon.png
+      - run: pnpm run build
+      - run: cargo build --manifest-path src-tauri/Cargo.toml

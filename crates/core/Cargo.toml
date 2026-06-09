@@ -1,0 +1,10 @@
+[package]
+name = "rainbreak-core"
+version = "0.1.0"
+edition = "2021"
+description = "雨やどり / Rainbreak のタイマー状態機械（時間の真実）。Tauri 非依存の純ロジック。"
+license = "MIT OR Apache-2.0"
+
+# 依存ゼロ（std のみ）。これにより webkit 等のシステム依存なしに
+# `cargo test` が単体で走り、状態遷移を実時間に依存せず検証できる（実装計画 §4）。
+[dependencies]

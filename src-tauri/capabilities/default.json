@@ -1,0 +1,7 @@
+{
+	"$schema": "../gen/schemas/desktop-schema.json",
+	"identifier": "default",
+	"description": "雨やどり の既定ケイパビリティ。フロントはイベント購読と自前コマンドのみを使う。",
+	"windows": ["overlay", "hud", "settings"],
+	"permissions": ["core:default", "autostart:default", "global-shortcut:default"]
+}

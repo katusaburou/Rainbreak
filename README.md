@@ -165,33 +165,55 @@ flowchart TB
 
 ### セットアップ & 実行
 ```sh
-pnpm install            # フロント依存
-pnpm tauri dev          # 開発起動（HMR + Rust ホットリロード）
-pnpm tauri build        # 各OSインストーラを生成
+pnpm install                     # フロント依存
+node tools/gen-assets.mjs        # 背景・アイコン素材を生成（初回のみ）
+pnpm tauri icon app-icon.png     # 各OS用アイコンを生成（初回のみ）
+pnpm tauri dev                   # 開発起動（HMR + Rust ホットリロード）
+pnpm tauri build                 # 各OSインストーラを生成
 ```
 
-### ディレクトリ構成（予定）
+> アイコン（`src-tauri/icons/`）と素材は生成物のため git 管理外です。`pnpm tauri dev/build` の前に上記の生成コマンドを一度実行してください（CI は自動で実行します）。
+
+### テスト / チェック
+```sh
+cargo test --manifest-path crates/core/Cargo.toml   # 状態機械の単体テスト
+pnpm run check                                       # フロントの型チェック
+pnpm run build                                       # 静的SPAビルド
 ```
-雨やどり/
-├─ src/                  # SvelteKit フロント（描画・演出）
+
+### ディレクトリ構成
+```
+Rainbreak/
+├─ src/                       # SvelteKit フロント（描画・演出のみ）
 │  ├─ routes/
-│  │  ├─ overlay/        # 全画面・雨オーバーレイ窓
-│  │  ├─ hud/            # 隅のHUDバー窓
-│  │  └─ settings/       # 設定窓
+│  │  ├─ overlay/+page.svelte # 全画面・雨オーバーレイ窓
+│  │  ├─ hud/+page.svelte     # 隅のHUDバー窓
+│  │  └─ settings/+page.svelte# 設定窓
 │  └─ lib/
-│     ├─ rain/           # フレームワーク非依存の雨モジュール（将来のWeb版と共有）
-│     ├─ audio/
-│     └─ ipc/            # Tauri event/command ラッパ
-├─ src-tauri/            # Rust コア（時間の真実）
+│     ├─ rain/                # フレームワーク非依存の雨モジュール（将来のWeb版と共有）
+│     ├─ audio/               # 雨音（Web Audio で合成）
+│     ├─ ipc/                 # Tauri event/command ラッパ + 型
+│     └─ motion.ts            # prefers-reduced-motion
+├─ crates/core/               # 時間の真実: 状態機械（Tauri 非依存・単体テスト対象）
+│  └─ src/phase.rs            # Work/Incoming/Shower/Clearing の遷移
+├─ src-tauri/                 # Tauri シェル（Rust）
 │  └─ src/
-│     ├─ phase.rs        # 状態機械
-│     ├─ scheduler.rs    # tokio タイマー
-│     ├─ windows.rs      # ウィンドウ制御（show/hide/最前面/クリックスルー）
-│     ├─ tray.rs
-│     └─ config.rs       # 設定の永続化
-├─ static/bg/            # ぼかし背景の静止画（屈折元）
-└─ docs/                 # 要件定義・実装計画
+│     ├─ main.rs              # セットアップ・プラグイン・ウィンドウ・トレイ登録
+│     ├─ scheduler.rs         # tokio interval（1s tick）
+│     ├─ glue.rs              # イベント emit + フェーズ遷移の副作用集約
+│     ├─ windows.rs           # ウィンドウ制御（show/hide/最前面/クリックスルー）
+│     ├─ shortcuts.rs         # グローバル Esc
+│     ├─ tray.rs              # トレイ・メニュー
+│     ├─ commands.rs          # #[tauri::command]
+│     ├─ config.rs            # 設定の永続化
+│     └─ state.rs             # 共有状態
+├─ static/bg/                 # ぼかし背景の静止画（屈折元）
+├─ tools/gen-assets.mjs       # 背景・アイコン素材の生成（依存なし）
+├─ .github/workflows/         # ci.yml（テスト/ビルド）・release.yml（tauri-action）
+└─ docs/                      # 要件定義・実装計画
 ```
+
+> 「時間の真実」は `crates/core` に分離し、Tauri 非依存で単体テストできるようにしています（実装計画 §4）。`src-tauri` はこのコアを駆動して描画窓へイベントを配信するシェルです。
 
 詳細な段取りは **[docs/implementation-plan.md](docs/implementation-plan.md)** を参照してください。
 
