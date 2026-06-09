@@ -1,0 +1,19 @@
+# Node / SvelteKit
+node_modules/
+/build/
+/.svelte-kit/
+vite.config.ts.timestamp-*
+
+# Rust
+target/
+/crates/core/target/
+/src-tauri/target/
+
+# Tauri 生成物（CI / 初回ローカルで生成）
+/src-tauri/gen/
+/src-tauri/icons/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.log
