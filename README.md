@@ -16,9 +16,11 @@
 
 | OS | ファイル | 備考 |
 |---|---|---|
-| **macOS**（Apple Silicon） | `..._aarch64.dmg` | M1 以降 |
-| **macOS**（Intel） | `..._x64.dmg` | Intel Mac |
-| **Windows** | `..._x64-setup.exe` | Windows 10/11 |
+| **macOS**（Apple Silicon） | `..._macOS_AppleSilicon.dmg` | M1 以降 |
+| **macOS**（Intel） | `..._macOS_Intel.dmg` | Intel Mac |
+| **Windows** | `..._Windows_Setup.exe` | Windows 10/11 |
+
+> `..._Update.app.tar.gz`・`.sig`・`latest.json` は自動アップデートの配信用ファイルです。手動でダウンロードする必要はありません。
 
 > **初回リリース（v0.1.0）は公開準備中です。** インストーラのビルド〜ドラフト作成までは CI で確認済みで、公開後に上記リンクの **Assets** から各OSのインストーラを取得できます。過去版は [リリース一覧](https://github.com/katusaburou/Rainbreak/releases) から。
 > **未署名配布**のため、初回起動時はOSの警告回避が必要です → [インストール手順](#インストール)。
@@ -175,8 +177,8 @@ flowchart TB
    xattr -dr com.apple.quarantine /Applications/雨やどり.app
    ```
 
-### Windows（`-setup.exe`）
-1. `-setup.exe` を実行。
+### Windows（`..._Windows_Setup.exe`）
+1. `..._Windows_Setup.exe` を実行。
 2. 「Windows によって PC が保護されました」が出たら →「詳細情報」→「実行」。
 
 ---
@@ -235,7 +237,9 @@ Rainbreak/
 │     ├─ config.rs            # 設定の永続化
 │     └─ state.rs             # 共有状態
 ├─ static/bg/                 # ぼかし背景の静止画（屈折元）
-├─ tools/gen-assets.mjs       # 背景・アイコン素材の生成（依存なし）
+├─ tools/
+│  ├─ gen-assets.mjs          # 背景・アイコン素材の生成（依存なし）
+│  └─ rename-release-assets.mjs # Release アセット名を分かりやすく整備（release.yml が実行）
 ├─ .github/workflows/         # ci.yml（テスト/ビルド）・release.yml（tauri-action）
 └─ docs/                      # 要件定義・実装計画
 ```
@@ -294,7 +298,7 @@ Rainbreak/
   - **手動実行**: GitHub の **Actions → release → Run workflow** で `version`（例 `v0.1.0`）を入力。タグを push できない環境向け。実行したコミットに同名タグを作成する。
   - いずれもドラフトのリリースが作られるため、内容を確認して **Publish** すると一般公開される。
   - 初回の **v0.1.0 はこのフローでドラフト作成まで確認済み**（未公開）。
-- 生成物: macOS `.dmg`（Apple Silicon / Intel）、Windows `-setup.exe`（NSIS）。
+- 生成物: macOS `.dmg`（Apple Silicon / Intel）、Windows `Setup.exe`（NSIS）。ビルド後の `rename-assets` ジョブが `tools/rename-release-assets.mjs` で OS の分かるアセット名（`..._Windows_Setup.exe` / `..._macOS_AppleSilicon.dmg` など）へ揃え、`latest.json` 内の URL も追随させる。
 - **未署名で配布**し、本 README とリリースノートに手順を明記。
 
 ### 自動アップデート

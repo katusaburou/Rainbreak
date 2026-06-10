@@ -77,3 +77,18 @@ jobs:
           # matrix 各ジョブのプラットフォーム情報は同一 Release 上でマージされる。
           includeUpdaterJson: true
           args: ${{ matrix.target && format('--target {0}', matrix.target) || '' }}
+
+  # Tauri 既定のアセット名（x64-setup / aarch64 など）はどの OS 向けか分かりにくいため、
+  # 全ジョブのアップロード完了後に OS が分かる名前へリネームし、latest.json の URL も追随させる。
+  # latest.json は各ビルドジョブがマージしながら更新するので、build 全体の完了を待って 1 回だけ実行する。
+  rename-assets:
+    needs: build
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: アセット名を分かりやすくリネーム
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node tools/rename-release-assets.mjs --tag '${{ github.event.inputs.version || github.ref_name }}'
