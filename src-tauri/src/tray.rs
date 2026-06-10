@@ -7,16 +7,17 @@ use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Manager};
 
-use crate::{commands, glue};
+use crate::{commands, glue, updater};
 
 /// トレイを構築する。setup から一度だけ呼ぶ。
 pub fn build(app: &AppHandle) -> tauri::Result<()> {
     let toggle = MenuItem::with_id(app, "toggle", "一時停止 / 再開", true, None::<&str>)?;
     let skip = MenuItem::with_id(app, "skip", "Skip（作業へ戻る）", true, None::<&str>)?;
     let settings = MenuItem::with_id(app, "settings", "設定…", true, None::<&str>)?;
+    let check_update = MenuItem::with_id(app, "check_update", "アップデートを確認…", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "終了", true, None::<&str>)?;
     let sep = PredefinedMenuItem::separator(app)?;
-    let menu = Menu::with_items(app, &[&toggle, &skip, &sep, &settings, &quit])?;
+    let menu = Menu::with_items(app, &[&toggle, &skip, &sep, &settings, &check_update, &quit])?;
 
     let mut builder = TrayIconBuilder::with_id("main")
         .tooltip("雨やどり")
@@ -25,6 +26,7 @@ pub fn build(app: &AppHandle) -> tauri::Result<()> {
             "toggle" => commands::toggle_pause(app),
             "skip" => commands::do_skip(app),
             "settings" => show_settings(app),
+            "check_update" => updater::check(app, true),
             "quit" => app.exit(0),
             _ => {}
         });

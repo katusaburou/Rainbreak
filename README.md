@@ -266,6 +266,7 @@ Rainbreak/
 - [x] 設定UIと永続化（サイクル長・音量/ミュート・自動起動。OS 設定ディレクトリの JSON）
 - [x] `prefers-reduced-motion` の自動尊重（雨を静的表示へ簡略化）
 - [x] CI（状態機械テスト／フロント型チェック・ビルド／mac・win コンパイル検証）とリリースワークフロー（tauri-action）
+- [x] 自動アップデート（起動時チェック＋確認ダイアログ、トレイの「アップデートを確認…」。配信には署名鍵の Secrets 登録が必要 → [配布 / リリース](#配布--リリース)）
 
 ### 公開前の残作業
 - [ ] 実機検証ゲート — 特に macOS 全画面共存はネイティブ実装が未着手（詳細は下記「⚠️ 技術検証ゲート（未了）」）
@@ -274,7 +275,6 @@ Rainbreak/
 
 ### 後続（拡張）
 - 予兆の演出磨き込み
-- 自動アップデート（updater + `latest.json`）
 - サイクル統計
 - （必要なら）コード署名
 
@@ -291,7 +291,16 @@ Rainbreak/
   - 初回の **v0.1.0 はこのフローでドラフト作成まで確認済み**（未公開）。
 - 生成物: macOS `.dmg`（Apple Silicon / Intel）、Windows `-setup.exe`（NSIS）。
 - **未署名で配布**し、本 README とリリースノートに手順を明記。
-- 自動アップデート（任意）: updater プラグイン ＋ `includeUpdaterJson: true` で `latest.json` を同梱（Tauri 更新用署名鍵が必要。OSのコード署名とは別物）。
+
+### 自動アップデート
+
+`tauri-plugin-updater` による自動アップデートを実装済み。アプリは起動約10秒後と、トレイの「アップデートを確認…」で Release 同梱の `latest.json` を確認し、新版があれば確認ダイアログ → 同意でダウンロード・適用・再起動する。
+
+- **更新の真正性は Tauri 更新署名鍵（minisign）で検証**する。OS のコード署名とは別物で、未署名配布のままでも動作する（macOS はアプリ自身が置き換えるため quarantine が付かず、Windows は NSIS をサイレント実行）。
+- **配信に必要な一度きりの準備**: リポジトリ **Settings → Secrets and variables → Actions** に、`tauri signer generate` で生成した秘密鍵を **`TAURI_SIGNING_PRIVATE_KEY`** として登録する（公開鍵は `src-tauri/tauri.conf.json` に埋め込み済み）。**秘密鍵を紛失すると以後の更新を配信できない**ため必ず保管する。
+- 配信開始のタイミング: ドラフト Release を **Publish した時点**で `releases/latest/download/latest.json` が解決可能になり、各クライアントに行き渡る。
+- 各リリース前に `src-tauri/tauri.conf.json`・`src-tauri/Cargo.toml`・`package.json` のバージョンを上げてからタグを切る。
+- 注意: 自動更新が効くのは updater 入りの版をインストールした利用者から。それ以前の版（素の v0.1.0 以前）には届かないため、手動での入れ直しを案内する。
 
 ### 将来のコード署名（任意・段階的）
 - **macOS**: Apple Developer Program（年99ドル）→ Developer ID 署名＋notarization で Gatekeeper 警告を解消。
