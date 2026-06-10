@@ -169,18 +169,12 @@ export class RainRenderer {
 	}
 
 	private drawBackground(ctx: CanvasRenderingContext2D, w: number, h: number): void {
-		if (this.bg) {
-			drawImageCover(ctx, this.bg, w, h);
-		} else {
-			// 背景画像が無い場合は梅雨どきの薄暗いグラデーション。
-			const g = ctx.createLinearGradient(0, 0, 0, h);
-			g.addColorStop(0, '#1a2230');
-			g.addColorStop(1, '#0c1118');
-			ctx.fillStyle = g;
-			ctx.fillRect(0, 0, w, h);
-		}
-		// 強さに応じて画面全体を曇らせる（通り雨で覆う）。
-		const veil = 0.12 + this.intensity * 0.5;
+		// [一時デモ] 透過確認用: 不透明な背景画像を描かず、透明にクリアして
+		// 背後のデスクトップが雨越しに透けるかを目視確認する。
+		// （本来は bg/default.png を屈折元に不透明描画＝モードA）
+		ctx.clearRect(0, 0, w, h);
+		// 軽いベール（強さに応じて少しだけ曇らせる。透過は保つ）。
+		const veil = 0.02 + this.intensity * 0.12;
 		ctx.fillStyle = `rgba(12, 17, 24, ${veil})`;
 		ctx.fillRect(0, 0, w, h);
 	}
