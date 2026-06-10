@@ -1,10 +1,19 @@
 name: release
 
-# バージョンタグ（v*）の push で各OSインストーラをビルドし Release へアップロード。
+# バージョンタグ（v*）の push、または Actions 画面からの手動実行で
+# 各OSインストーラをビルドし Release（ドラフト）へアップロードする。
 on:
   push:
     tags:
       - 'v*'
+  # タグを push せずに GitHub の Actions 画面からリリースを起動できる手動トリガ。
+  # version にバージョン（例: v0.1.0）を入れると、実行したコミットにそのタグを作成する。
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'リリースバージョン（例: v0.1.0）'
+        required: true
+        default: 'v0.1.0'
 
 jobs:
   build:
@@ -54,8 +63,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: '雨やどり ${{ github.ref_name }}'
+          # タグ push 時は github.ref_name、手動実行時は入力 version を使う。
+          tagName: ${{ github.event.inputs.version || github.ref_name }}
+          releaseName: '雨やどり ${{ github.event.inputs.version || github.ref_name }}'
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.target && format('--target {0}', matrix.target) || '' }}

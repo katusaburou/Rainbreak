@@ -252,7 +252,10 @@ Rainbreak/
 
 ## 配布 / リリース
 
-- **GitHub Releases ＋ `tauri-apps/tauri-action`**。バージョンタグ（`v*`）の push で、macOS(Arm/Intel)・Windows のインストーラをビルド → Release 作成＆アップロードまで自動化。
+- **GitHub Releases ＋ `tauri-apps/tauri-action`**。macOS(Arm/Intel)・Windows のインストーラをビルド → Release（ドラフト）作成＆アップロードまで自動化。起動方法は2通り:
+  - **タグ push**: `git tag v0.1.0 && git push origin v0.1.0`（`v*` で発火）。
+  - **手動実行**: GitHub の **Actions → release → Run workflow** で `version`（例 `v0.1.0`）を入力。タグを push できない環境向け。実行したコミットに同名タグを作成する。
+  - いずれもドラフトのリリースが作られるため、内容を確認して **Publish** すると一般公開される。
 - 生成物: macOS `.dmg`、Windows `.msi`(WiX) / `-setup.exe`(NSIS)。
 - **未署名で配布**し、本 README とリリースノートに手順を明記。
 - 自動アップデート（任意）: updater プラグイン ＋ `includeUpdaterJson: true` で `latest.json` を同梱（Tauri 更新用署名鍵が必要。OSのコード署名とは別物）。
