@@ -23,6 +23,12 @@ tokio = { version = "1", features = ["time", "rt", "macros", "sync"] }
 # 時間の真実（状態機械）は Tauri 非依存のコアクレートに分離（テスト容易性）。
 rainbreak-core = { path = "../crates/core" }
 
+# モードB: 雨ガラスの屈折元に使う画面キャプチャ（capture_screen コマンド）。
+# image は JPEG エンコードにだけ使うので既定フォーマット群（avif 等）は外す。
+xcap = "0.9.6"
+image = { version = "0.25.6", default-features = false, features = ["jpeg"] }
+base64 = "0.22.1"
+
 [features]
 # 既定。Tauri テンプレート互換のためのプレースホルダ。
 custom-protocol = ["tauri/custom-protocol"]

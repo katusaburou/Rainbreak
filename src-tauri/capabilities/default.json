@@ -3,5 +3,11 @@
 	"identifier": "default",
 	"description": "雨やどり の既定ケイパビリティ。フロントはイベント購読と自前コマンドのみを使う。",
 	"windows": ["overlay", "hud", "settings"],
-	"permissions": ["core:default", "autostart:default", "global-shortcut:default"]
+	"permissions": [
+		"core:default",
+		"core:window:allow-start-dragging",
+		"core:window:allow-start-resize-dragging",
+		"autostart:default",
+		"global-shortcut:default"
+	]
 }

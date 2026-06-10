@@ -7,7 +7,8 @@
 		break_min: 5,
 		volume: 0.6,
 		muted: false,
-		autostart: false
+		autostart: false,
+		hud_opacity: 1
 	});
 	let loaded = $state(false);
 	let saving = $state(false);
@@ -29,7 +30,8 @@
 				...cfg,
 				work_min: clampInt(cfg.work_min, 1, 180),
 				break_min: clampInt(cfg.break_min, 1, 60),
-				volume: Math.min(1, Math.max(0, cfg.volume))
+				volume: Math.min(1, Math.max(0, cfg.volume)),
+				hud_opacity: Math.min(1, Math.max(0.1, cfg.hud_opacity))
 			});
 			savedAt = Date.now();
 		} finally {
@@ -77,6 +79,14 @@
 					bind:value={cfg.volume}
 					disabled={cfg.muted}
 				/>
+			</label>
+		</section>
+
+		<section>
+			<h2>HUD バー</h2>
+			<label>
+				濃さ（{Math.round(cfg.hud_opacity * 100)}%・左へ動かすほど透ける）
+				<input type="range" min="0.1" max="1" step="0.05" bind:value={cfg.hud_opacity} />
 			</label>
 		</section>
 

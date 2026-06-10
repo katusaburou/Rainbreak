@@ -19,3 +19,9 @@ export const updateConfig = (cfg: AppConfig): Promise<void> => invoke('update_co
 
 /** アプリ終了。 */
 export const quitApp = (): Promise<void> => invoke('quit');
+
+/**
+ * overlay が覆うモニタの現在表示を JPEG data URL で取得する（モードB）。
+ * 雨ガラスの屈折元背景に使う。overlay/hud はキャプチャから除外済み（Windows）。
+ */
+export const captureScreen = (): Promise<string> => invoke('capture_screen');

@@ -2,22 +2,19 @@
 //
 // 実装計画 §6 に従い、Svelte に依存しない素の TS クラスとして
 // `init / setIntensity / start / stop / destroy` の API を提供する。
-// 裏側のバックエンドはこのファサードが選択する:
+// 裏側は raindrop-fx（WebGL2）の単一バックエンド: 粒ごとの不規則な形状・
+// 蛇行滑落・トレイル滴・背景のぼかし屈折を持つ本実装
+// （屈折元はモードA: `static/bg/` の静止画 → モードB: 画面キャプチャが差し替え）。
 //
-// - 既定: raindrop-fx（WebGL2）。粒ごとの不規則な形状・蛇行滑落・トレイル滴・
-//   背景のぼかし屈折を持つ本実装（モードA: `static/bg/` の静止画を屈折元に使う）。
-// - フォールバック: Canvas2D 簡易版。WebGL2 が無い環境と
-//   `prefers-reduced-motion`（静的表示）で使う。
-//
-// フォールバック境界: 一度 WebGL コンテキストを取った canvas は 2d コンテキストを
-// 返さないため、Canvas2D へ切り替えられるのは「実 canvas にコンテキストを取る前」
-// の失敗（WebGL2 判定・モジュール読込）まで。raindrop-fx はコンストラクタで
-// コンテキストを取るので、構築以降の失敗時はエラーを記録し雨なし（透明）に留める。
+// 劣化方針: WebGL2 なし / prefers-reduced-motion / 初期化失敗は console に
+// 明示した上で「雨なし」に統一する（isDegraded() が true になる）。
+// その場合の見せ方（静的ベール）は overlay ページの CSS が担い、ここは
+// canvas の opacity 制御を続けるだけ（ベールも同じフェードで現れ消えする）。
 //
 // 背景が不透明になるぶん、「予兆で現れて雨上がりで消える」見せ隠しは
 // intensity に連動した canvas の opacity フェードとしてここで管理する。
-// 省電力（§4）: 非表示時は visibilitychange で確実に停止し、FPS 上限は
-// Canvas2D 側のみ（raindrop-fx は内部 rAF。雨フェーズ外は完全停止で相殺）。
+// 省電力（§4）: 非表示時は visibilitychange で確実に停止する
+// （raindrop-fx は内部 rAF 駆動。雨フェーズ外は完全停止で相殺）。
 
 import type { RainBackend, RainOptions } from './types';
 
@@ -27,60 +24,46 @@ export class RainRenderer {
 	private canvas: HTMLCanvasElement | null = null;
 	private backend: RainBackend | null = null;
 	private intensity = 0;
-	private fpsCap: number | undefined;
+	private maxOpacity = 1;
 	private reducedMotion: boolean;
 	private desiredRunning = false;
 	private destroyed = false;
 	private resizeObserver: ResizeObserver | null = null;
 
 	constructor(opts: RainOptions = {}) {
-		this.fpsCap = opts.fpsCap;
 		this.reducedMotion = opts.reducedMotion ?? false;
 	}
 
-	/** キャンバスと背景を結びつけ、バックエンドを選択する。 */
+	/** キャンバスと背景を結びつけ、バックエンドを初期化する。 */
 	async init(canvas: HTMLCanvasElement, opts: RainOptions = {}): Promise<void> {
 		this.canvas = canvas;
-		if (opts.fpsCap) this.fpsCap = opts.fpsCap;
 		if (opts.reducedMotion !== undefined) this.reducedMotion = opts.reducedMotion;
 		const merged: RainOptions = {
 			...opts,
-			fpsCap: this.fpsCap,
 			reducedMotion: this.reducedMotion
 		};
 
-		// 不透明な窓ガラス描画の見せ隠しフェード（setIntensity と連動）。
+		// 雨（劣化時は静的ベール）の見せ隠しフェード（setIntensity と連動）。
 		canvas.style.opacity = '0';
 		canvas.style.transition = 'opacity 250ms linear';
 
-		let webglPoisoned = false;
-		if (!this.reducedMotion && supportsWebGL2()) {
-			let Backend: typeof import('./RaindropFxBackend').RaindropFxBackend | null = null;
+		if (this.reducedMotion) {
+			// エラーではなく設定の尊重なので warn に留める。雨なし＝ベール表示へ。
+			console.warn('rain: prefers-reduced-motion のため雨アニメーションを無効化します。');
+		} else if (!supportsWebGL2()) {
+			console.error('rain: WebGL2 が利用できないため雨表現を無効化します（静的ベール表示）。');
+		} else {
+			let backend: import('./RaindropFxBackend').RaindropFxBackend | null = null;
 			try {
-				// モジュール読込までは実 canvas に触れない（失敗しても Canvas2D へ行ける）。
 				const mod = await import('./RaindropFxBackend');
-				await mod.RaindropFxBackend.preload();
-				Backend = mod.RaindropFxBackend;
+				backend = new mod.RaindropFxBackend();
+				await backend.init(canvas, merged); // ここで WebGL コンテキストを取得
+				this.backend = backend;
 			} catch (e) {
-				console.warn('rain: raindrop-fx の読込に失敗。Canvas2D にフォールバックします。', e);
+				// 取得済みの GPU リソースはベストエフォートで解放し、雨なしに統一。
+				backend?.destroy();
+				console.error('rain: raindrop-fx の初期化に失敗。雨表現を無効化します（静的ベール表示）。', e);
 			}
-			if (Backend) {
-				const backend = new Backend();
-				try {
-					await backend.init(canvas, merged); // ここで WebGL コンテキストを取得
-					this.backend = backend;
-				} catch (e) {
-					// コンテキスト取得後の失敗: canvas は 2d を返せないため雨なしに留める。
-					console.error('rain: raindrop-fx の初期化に失敗。雨表現を無効化します。', e);
-					backend.destroy();
-					webglPoisoned = true;
-				}
-			}
-		}
-		if (!this.backend && !webglPoisoned) {
-			const { Canvas2DRainBackend } = await import('./Canvas2DRainBackend');
-			this.backend = new Canvas2DRainBackend();
-			await this.backend.init(canvas, merged);
 		}
 
 		this.backend?.setIntensity(this.intensity);
@@ -106,6 +89,31 @@ export class RainRenderer {
 
 	getIntensity(): number {
 		return this.intensity;
+	}
+
+	/**
+	 * 雨バックエンドが無い＝劣化モードか（init 完了後に有効）。
+	 * true のときは overlay ページが canvas に静的ベール（CSS）を出す。
+	 */
+	isDegraded(): boolean {
+		return this.backend === null;
+	}
+
+	/**
+	 * キャンバス全体の不透明度の上限（0..1）。
+	 *
+	 * 予兆中は 1 未満に抑えて背後のライブ画面を読めるようにし（作業継続可）、
+	 * 通り雨で 1 に上げて「ガラスが現れきる」。`fadeMs` はその切替の所要時間で、
+	 * 通り雨入りのガラス出現だけ長め（既定 250ms）を渡す。
+	 */
+	setMaxOpacity(cap: number, fadeMs = 250): void {
+		this.maxOpacity = clamp(cap, 0, 1);
+		this.applyOpacity(fadeMs);
+	}
+
+	/** 屈折元背景の差し替え（モードB: 画面キャプチャ）。 */
+	async setBackground(url: string): Promise<void> {
+		await this.backend?.setBackground(url);
 	}
 
 	/** アニメーション開始。非表示中は visibilitychange の復帰時に始める。 */
@@ -144,11 +152,14 @@ export class RainRenderer {
 		}
 	};
 
-	// 予兆の序盤（intensity 0→0.3）でガラスが現れきり、雨上がりの終盤で消える。
+	// 予兆の序盤（intensity 0→0.3）で maxOpacity まで現れ、雨上がりの終盤で消える。
 	// work 中は intensity 0 → opacity 0 でデスクトップが完全に見える。
-	private applyOpacity(): void {
+	// 雨上がりの 3 秒 tween（30fps）を追従させるため、フェードは既定 250ms に留める
+	// （長くすると Work 遷移の overlay 非表示時にまだ濃いまま切れて「パッ」と消える）。
+	private applyOpacity(fadeMs = 250): void {
 		if (!this.canvas) return;
-		this.canvas.style.opacity = String(Math.min(1, this.intensity / 0.3));
+		this.canvas.style.transition = `opacity ${fadeMs}ms linear`;
+		this.canvas.style.opacity = String(Math.min(1, this.intensity / 0.3) * this.maxOpacity);
 	}
 }
 
