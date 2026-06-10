@@ -1,7 +1,7 @@
 {
 	"$schema": "https://schema.tauri.app/config/2",
 	"productName": "Rainbreak",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"identifier": "dev.rainbreak.app",
 	"build": {
 		"frontendDist": "../build",
@@ -63,7 +63,7 @@
 	},
 	"bundle": {
 		"active": true,
-		"targets": ["dmg", "nsis"],
+		"targets": ["app", "dmg", "nsis"],
 		"createUpdaterArtifacts": true,
 		"icon": [
 			"icons/32x32.png",
@@ -78,7 +78,7 @@
 	},
 	"plugins": {
 		"updater": {
-			"pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDY4NEEzNkVBRDUwQUU2MUEKUldRYTVnclY2alpLYU5lSnVNWUFPRmhVUTZqUEpUTVBlbTdBWGgwWG5ZcEsydVczTTRlNXV4RGEK",
+			"pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEZEMkI4ODA3RjE5MTlCNDkKUldSSm01SHhCNGdyL2JwNjFKTmJGVFpCZ0RMenhlM2NYTCtoK3RZT3BvMWVUOG8zRHJ4Y0lXekMK",
 			"endpoints": [
 				"https://github.com/katusaburou/rainbreak/releases/latest/download/latest.json"
 			],

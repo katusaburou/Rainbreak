@@ -1,6 +1,6 @@
 [package]
 name = "rainbreak"
-version = "0.1.0"
+version = "0.1.1"
 description = "雨やどり / Rainbreak — 通り雨で休む作業タイマー"
 edition = "2021"
 rust-version = "1.77"
