@@ -32,4 +32,6 @@ export interface AppConfig {
 	volume: number;
 	muted: boolean;
 	autostart: boolean;
+	/** HUD バーの不透明度 0.1..=1.0（1 = 透過なし）。 */
+	hud_opacity: number;
 }

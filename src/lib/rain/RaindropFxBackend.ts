@@ -6,8 +6,7 @@
 //
 // 注意（ライブラリの性質）:
 // - `new RaindropFX()` はコンストラクタで実 canvas の WebGL2 コンテキストを
-//   取得する。以後その canvas では 2d コンテキストが取れないため、Canvas2D
-//   へのフォールバック可否の判断はファサード側（preload まで＝構築前）。
+//   取得する。構築以降の失敗はファサード側が「雨なし（静的ベール）」に倒す。
 // - `start()` は呼ぶたびにアセット読込＋新しい rAF ループを生成する。
 //   多重起動やロード中の stop/destroy で壊れないよう、操作を直列化する。
 // - `destroy()` は存在しない（stop/resize/setBackground のみ）。
@@ -33,10 +32,7 @@ export class RaindropFxBackend implements RainBackend {
 	private destroyed = false;
 	private size: [number, number] | null = null;
 
-	/**
-	 * モジュール読込だけを先に済ませる。実 canvas には一切触れないため、
-	 * ここで失敗しても Canvas2D フォールバックが可能。
-	 */
+	/** モジュール読込だけを先に済ませる（実 canvas には触れない）。 */
 	static async preload(): Promise<void> {
 		RaindropFxBackend.module ??= await import('raindrop-fx');
 	}
@@ -47,15 +43,28 @@ export class RaindropFxBackend implements RainBackend {
 		// raindrop-fx は構築時点の canvas.width/height を viewport に使う（CSS px・DPR 1）。
 		canvas.width = canvas.clientWidth || window.innerWidth;
 		canvas.height = canvas.clientHeight || window.innerHeight;
-		// ここから先（WebGL コンテキスト取得後）の失敗は Canvas2D に切り替え不可。
+		// ここで WebGL コンテキストを取得する。以降の失敗はファサードが雨なしに倒す。
 		this.fx = new Raindrop({
 			canvas,
 			background: opts.backgroundUrl ?? '/bg/default.png',
-			backgroundBlurSteps: 4,
+			// 画面キャプチャ背景（モードB）でデスクトップの文字が読める程度に
+			// ぼかしは控えめ（既定 3。4 だと作業画面の判別が難しい）。
+			backgroundBlurSteps: 3,
 			mist: true,
 			mistColor: [0.01, 0.01, 0.02, 1],
 			gravity: 2400,
 			spawnSize: [30, 90],
+			// --- 水滴の輪郭強調（既定値からひと回り強く） ---
+			// エッジのスムージング幅を狭めて輪郭線をくっきりさせる（既定 [0.96, 1.0]）。
+			smoothRaindrop: [0.97, 0.995],
+			// 法線の平坦化を弱め（既定 1）、縁の陰影＝立体感を出す。
+			raindropLightBump: 0.6,
+			// 拡散光を少し明るくしてリムライトを見えやすく（既定 [0.2,0.2,0.2]）。
+			raindropDiffuseLight: [0.35, 0.35, 0.4],
+			// 影をわずかに増やし下縁の輪郭を締める（既定 0.8）。
+			raindropShadowOffset: 0.85,
+			// 粒内部の屈折を強めて背景とのコントラストを上げる（既定 0.6）。
+			refractScale: 0.7,
 			...intensityParams(0)
 		});
 	}
@@ -65,6 +74,23 @@ export class RaindropFxBackend implements RainBackend {
 		// simulator/renderer はこの options オブジェクトを参照し続けるため、
 		// 直接書き換えるだけで次フレームから効く（README 記載の運用）。
 		Object.assign(this.fx.options, intensityParams(clamp(value, 0, 1)));
+	}
+
+	setBackground(url: string): Promise<void> {
+		// 初回 start()（loadAssets）前に fx.setBackground を呼ぶとテクスチャ未生成で
+		// 落ちるため、resize と同じく loaded をゲートに直列化する。
+		// 未ロード時は options.background の差し替えだけで済ませ、start() 時に読ませる。
+		const run = this.queue.then(async () => {
+			if (this.destroyed || !this.fx) return;
+			if (this.loaded) {
+				await this.fx.setBackground(url);
+			} else {
+				this.fx.options.background = url;
+			}
+		});
+		// キューは失敗でも繋がるように握りつぶし、呼び出し元へはエラーを返す。
+		this.queue = run.catch(() => {});
+		return run;
 	}
 
 	start(): void {
@@ -131,9 +157,15 @@ export class RaindropFxBackend implements RainBackend {
 
 /**
  * intensity(0..1) → raindrop-fx パラメータの写像。
- * 生成系は k = i^2 で立ち上げ、終盤ほど一気に強まる（予兆の演出に合わせる）。
- * i=0 では新規生成がほぼ止まり、既存粒は蒸発・滑落だけになるため、
- * 雨上がりの 3 秒 tween が「雨が自然に止む」見えになる。
+ *
+ * 生成間隔は等比（幾何）補間 × k=i^2 で詰める。線形補間だと生成レート
+ * （= 1/間隔）の増加が最終盤に集中し、予兆 30 秒の序盤〜中盤がほぼ無雨に
+ * 見えるため、レートが一定倍率で伸びる等比にして「降り始めから少しずつ
+ * 強くなる」体感を作る。始点は等比の素直な値（2.5s）の 1/3 ＝予兆の雨量
+ * 約 3 倍（終点＝通り雨へ向けて滑らかに 1 倍へ収束する）。
+ * 目安: 開始直後 ~0.8s に1粒 → 15 秒で ~0.36s → 25 秒で ~0.08s →
+ * 通り雨 0.03s。雨上がりは同じ曲線を逆に下るので「自然に止む」見えも
+ * 保たれる。i=0 は生成が最も疎（work では stop 済みで描画なし）。
  *
  * option 名は node_modules/raindrop-fx/dist/*.d.ts で確認済み
  * （dropletsPerSeconds が正。README の dropletsPerSecond は誤記）。
@@ -141,12 +173,14 @@ export class RaindropFxBackend implements RainBackend {
 function intensityParams(i: number): Partial<FxOptions> {
 	const k = i * i;
 	return {
-		spawnInterval: [lerp(2.5, 0.06, k), lerp(5.0, 0.15, k)],
-		// README の性能目安（1080p/600 粒で 2-3ms/frame）に合わせた保守値。
-		// Gate 3 の実機計測で余裕があれば 800〜1000 まで上げる余地あり。
-		spawnLimit: Math.round(lerp(100, 600, i)),
+		// 上端（i=1 ＝ 通り雨）は初期値の 2 倍の雨量。
+		// spawnLimit 1200 はライブラリ推奨上限（<2000）の範囲内で、
+		// README の性能目安（1080p/600 粒で 2-3ms/frame）から ~4-6ms/frame 想定。
+		spawnInterval: [expLerp(2.5 / 3, 0.03, k), expLerp(5.0 / 3, 0.075, k)],
+		spawnLimit: Math.round(lerp(100, 1200, i)),
 		slipRate: lerp(0.05, 0.3, i),
-		dropletsPerSeconds: lerp(2, 40, i),
+		// 微小滴も予兆 3 倍に合わせて始点を引き上げ（終点は通り雨の値のまま）。
+		dropletsPerSeconds: lerp(6, 80, i),
 		trailDropDensity: lerp(0.1, 0.25, i),
 		evaporate: lerp(30, 10, i)
 	};
@@ -154,6 +188,11 @@ function intensityParams(i: number): Partial<FxOptions> {
 
 function lerp(a: number, b: number, t: number): number {
 	return a + (b - a) * t;
+}
+
+/** 等比補間（a, b > 0）。レート系パラメータを体感が滑らかな倍率変化で動かす。 */
+function expLerp(a: number, b: number, t: number): number {
+	return a * Math.pow(b / a, t);
 }
 
 function clamp(v: number, lo: number, hi: number): number {

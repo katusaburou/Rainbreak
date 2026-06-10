@@ -37,12 +37,21 @@ fn main() {
                     if shortcut != &esc {
                         return;
                     }
-                    // 作業中は Esc を奪わない（shortcuts::sync が解除しているが二重防御）。
-                    let state = app.state::<AppState>();
-                    let phase = { state.timer.lock().unwrap().phase() };
-                    if phase != Phase::Work {
-                        commands::do_skip(app);
-                    }
+                    // [デッドロック回避] このハンドラはプラグインが内部の
+                    // shortcuts ミューテックスを保持したままメインスレッドで呼ぶ。
+                    // ここから同期的に do_skip → shortcuts::sync → unregister と
+                    // 進むと同じミューテックスを再取得して自己デッドロックし、
+                    // アプリ全体が固まる（休憩中の Esc で発生していた不具合）。
+                    // 仕事はすべて async ランタイムへ逃がし、ハンドラは即返す。
+                    let app = app.clone();
+                    tauri::async_runtime::spawn(async move {
+                        // 作業中は Esc を奪わない（shortcuts::sync が解除しているが二重防御）。
+                        let state = app.state::<AppState>();
+                        let phase = { state.timer.lock().unwrap().phase() };
+                        if phase != Phase::Work {
+                            commands::do_skip(&app);
+                        }
+                    });
                 })
                 .build(),
         )
@@ -53,7 +62,22 @@ fn main() {
             commands::get_config,
             commands::update_config,
             commands::quit,
+            commands::capture_screen,
         ])
+        .on_window_event(|window, event| {
+            // HUD のドラッグ移動・リサイズを記憶する（デバウンス保存は windows 側）。
+            if window.label() == "hud" {
+                match event {
+                    tauri::WindowEvent::Moved(pos) => {
+                        windows::on_hud_moved(window.app_handle(), *pos);
+                    }
+                    tauri::WindowEvent::Resized(size) => {
+                        windows::on_hud_resized(window.app_handle(), *size);
+                    }
+                    _ => {}
+                }
+            }
+        })
         .setup(|app| {
             let handle = app.handle();
             let cfg = config::load(handle);
