@@ -8,6 +8,23 @@
 
 ---
 
+## ダウンロード
+
+[![最新リリース](https://img.shields.io/github/v/release/katusaburou/Rainbreak?label=latest&sort=semver)](https://github.com/katusaburou/Rainbreak/releases/latest)
+
+**▶ [最新版をダウンロード（GitHub Releases）](https://github.com/katusaburou/Rainbreak/releases/latest)**
+
+| OS | ファイル | 備考 |
+|---|---|---|
+| **macOS**（Apple Silicon） | `..._aarch64.dmg` | M1 以降 |
+| **macOS**（Intel） | `..._x64.dmg` | Intel Mac |
+| **Windows** | `..._x64-setup.exe` | Windows 10/11 |
+
+> 上記リンクの **Assets** から各OSのインストーラを取得できます（リリース公開後に表示されます）。過去版は [リリース一覧](https://github.com/katusaburou/Rainbreak/releases) から。
+> **未署名配布**のため、初回起動時はOSの警告回避が必要です → [インストール手順](#インストール)。
+
+---
+
 ## これは何か
 
 **雨やどり**は、ポモドーロ型の作業タイマーと、窓ガラスを流れる雨のアンビエント表現を組み合わせた **macOS / Windows 向けのデスクトップ常駐アプリ**です。
@@ -140,6 +157,7 @@ flowchart TB
 
 ## インストール
 
+> インストーラは **[最新リリース](https://github.com/katusaburou/Rainbreak/releases/latest)** の Assets から取得します。
 > 現状は **未署名配布**です。OSの警告を回避する手順を以下に示します。署名は将来段階的に追加予定（[配布](#配布--リリース)参照）。
 
 ### macOS（`.dmg`）
@@ -252,7 +270,10 @@ Rainbreak/
 
 ## 配布 / リリース
 
-- **GitHub Releases ＋ `tauri-apps/tauri-action`**。バージョンタグ（`v*`）の push で、macOS(Arm/Intel)・Windows のインストーラをビルド → Release 作成＆アップロードまで自動化。
+- **GitHub Releases ＋ `tauri-apps/tauri-action`**。macOS(Arm/Intel)・Windows のインストーラをビルド → Release（ドラフト）作成＆アップロードまで自動化。起動方法は2通り:
+  - **タグ push**: `git tag v0.1.0 && git push origin v0.1.0`（`v*` で発火）。
+  - **手動実行**: GitHub の **Actions → release → Run workflow** で `version`（例 `v0.1.0`）を入力。タグを push できない環境向け。実行したコミットに同名タグを作成する。
+  - いずれもドラフトのリリースが作られるため、内容を確認して **Publish** すると一般公開される。
 - 生成物: macOS `.dmg`、Windows `.msi`(WiX) / `-setup.exe`(NSIS)。
 - **未署名で配布**し、本 README とリリースノートに手順を明記。
 - 自動アップデート（任意）: updater プラグイン ＋ `includeUpdaterJson: true` で `latest.json` を同梱（Tauri 更新用署名鍵が必要。OSのコード署名とは別物）。
