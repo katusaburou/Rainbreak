@@ -8,6 +8,23 @@
 
 ---
 
+## ダウンロード
+
+[![最新リリース](https://img.shields.io/github/v/release/katusaburou/Rainbreak?label=latest&sort=semver)](https://github.com/katusaburou/Rainbreak/releases/latest)
+
+**▶ [最新版をダウンロード（GitHub Releases）](https://github.com/katusaburou/Rainbreak/releases/latest)**
+
+| OS | ファイル | 備考 |
+|---|---|---|
+| **macOS**（Apple Silicon） | `..._aarch64.dmg` | M1 以降 |
+| **macOS**（Intel） | `..._x64.dmg` | Intel Mac |
+| **Windows** | `..._x64-setup.exe` | Windows 10/11 |
+
+> 上記リンクの **Assets** から各OSのインストーラを取得できます（リリース公開後に表示されます）。過去版は [リリース一覧](https://github.com/katusaburou/Rainbreak/releases) から。
+> **未署名配布**のため、初回起動時はOSの警告回避が必要です → [インストール手順](#インストール)。
+
+---
+
 ## これは何か
 
 **雨やどり**は、ポモドーロ型の作業タイマーと、窓ガラスを流れる雨のアンビエント表現を組み合わせた **macOS / Windows 向けのデスクトップ常駐アプリ**です。
@@ -140,6 +157,7 @@ flowchart TB
 
 ## インストール
 
+> インストーラは **[最新リリース](https://github.com/katusaburou/Rainbreak/releases/latest)** の Assets から取得します。
 > 現状は **未署名配布**です。OSの警告を回避する手順を以下に示します。署名は将来段階的に追加予定（[配布](#配布--リリース)参照）。
 
 ### macOS（`.dmg`）
