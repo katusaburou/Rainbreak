@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onDestroy, onMount } from 'svelte';
+	import { dev } from '$app/environment';
 	import { RainRenderer } from '$lib/rain';
 	import { RainAudio } from '$lib/audio';
 	import { prefersReducedMotion } from '$lib/motion';
@@ -91,19 +92,32 @@
 			// Tauri 外（ブラウザプレビュー）では既定値のまま。
 		}
 
-		unlisten.push(await onPhaseChanged((p) => applyPhase(p.phase)));
-		unlisten.push(
-			await onIncomingProgress((p) => {
-				if (phase === 'incoming') rain?.setIntensity(p.p);
-			})
-		);
-		unlisten.push(
-			await onConfigChanged((c) => {
-				audio?.setVolume(c.volume);
-				audio?.setMuted(c.muted);
-			})
-		);
+		try {
+			unlisten.push(await onPhaseChanged((p) => applyPhase(p.phase)));
+			unlisten.push(
+				await onIncomingProgress((p) => {
+					if (phase === 'incoming') rain?.setIntensity(p.p);
+				})
+			);
+			unlisten.push(
+				await onConfigChanged((c) => {
+					audio?.setVolume(c.volume);
+					audio?.setMuted(c.muted);
+				})
+			);
+		} catch {
+			// Tauri 外（ブラウザプレビュー）ではイベント購読に失敗し得る。続行する。
+		}
 		window.addEventListener('keydown', onKeydown);
+
+		// [dev プレビュー] Tauri 外では phase イベントが来ないため、
+		// ?phase=shower などのクエリでフェーズを手動再現できるようにする。
+		if (dev && !('__TAURI_INTERNALS__' in window)) {
+			const p = new URLSearchParams(location.search).get('phase');
+			if (p === 'work' || p === 'incoming' || p === 'shower' || p === 'clearing') {
+				applyPhase(p);
+			}
+		}
 	});
 
 	onDestroy(() => {

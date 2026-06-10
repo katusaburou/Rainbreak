@@ -1,258 +1,167 @@
-// 窓ガラスを流れる雨の描画モジュール（フレームワーク非依存）。
+// 窓ガラスを流れる雨の描画ファサード（フレームワーク非依存）。
 //
-// 実装計画 §6 に従い、Svelte に依存しない素の TS クラスとして実装し、
-// `init / setIntensity / start / stop / destroy` の API を提供する。将来の
-// ブラウザ版や WebGL（raindrop-fx）実装は **この同じインターフェイスの裏側**
-// に差し替えられる。本実装は追加依存なしで動く Canvas2D の暫定版。
+// 実装計画 §6 に従い、Svelte に依存しない素の TS クラスとして
+// `init / setIntensity / start / stop / destroy` の API を提供する。
+// 裏側のバックエンドはこのファサードが選択する:
 //
-// - 背景は「ぼかした風景の静止画 1 枚」を屈折元に使う想定（モードA, §3.3）。
-// - FPS 上限 30、被覆・非表示時は停止して省電力（§4）。
-// - `prefers-reduced-motion` 時はアニメーションを止め静的表示にする（§4）。
+// - 既定: raindrop-fx（WebGL2）。粒ごとの不規則な形状・蛇行滑落・トレイル滴・
+//   背景のぼかし屈折を持つ本実装（モードA: `static/bg/` の静止画を屈折元に使う）。
+// - フォールバック: Canvas2D 簡易版。WebGL2 が無い環境と
+//   `prefers-reduced-motion`（静的表示）で使う。
+//
+// フォールバック境界: 一度 WebGL コンテキストを取った canvas は 2d コンテキストを
+// 返さないため、Canvas2D へ切り替えられるのは「実 canvas にコンテキストを取る前」
+// の失敗（WebGL2 判定・モジュール読込）まで。raindrop-fx はコンストラクタで
+// コンテキストを取るので、構築以降の失敗時はエラーを記録し雨なし（透明）に留める。
+//
+// 背景が不透明になるぶん、「予兆で現れて雨上がりで消える」見せ隠しは
+// intensity に連動した canvas の opacity フェードとしてここで管理する。
+// 省電力（§4）: 非表示時は visibilitychange で確実に停止し、FPS 上限は
+// Canvas2D 側のみ（raindrop-fx は内部 rAF。雨フェーズ外は完全停止で相殺）。
 
-export interface RainOptions {
-	/** 屈折元になる背景画像の URL（モードA の静止画）。 */
-	backgroundUrl?: string;
-	/** FPS 上限。既定 30。 */
-	fpsCap?: number;
-	/** 動きを抑制（prefers-reduced-motion）。 */
-	reducedMotion?: boolean;
-}
+import type { RainBackend, RainOptions } from './types';
 
-interface Drop {
-	x: number;
-	y: number;
-	r: number;
-	/** 落下速度（px/s）。0 なら静止（窓に張り付いた粒）。 */
-	vy: number;
-	/** 尾の長さ。 */
-	trail: number;
-	life: number;
-}
+export type { RainOptions } from './types';
 
 export class RainRenderer {
 	private canvas: HTMLCanvasElement | null = null;
-	private ctx: CanvasRenderingContext2D | null = null;
-	private bg: HTMLImageElement | null = null;
-	private drops: Drop[] = [];
+	private backend: RainBackend | null = null;
 	private intensity = 0;
-	private running = false;
-	private rafId = 0;
-	private lastFrame = 0;
-	private lastSpawn = 0;
-	private frameInterval: number;
+	private fpsCap: number | undefined;
 	private reducedMotion: boolean;
-	private dpr = 1;
+	private desiredRunning = false;
+	private destroyed = false;
 	private resizeObserver: ResizeObserver | null = null;
 
 	constructor(opts: RainOptions = {}) {
-		this.frameInterval = 1000 / (opts.fpsCap ?? 30);
+		this.fpsCap = opts.fpsCap;
 		this.reducedMotion = opts.reducedMotion ?? false;
 	}
 
-	/** キャンバスと背景を結びつける。 */
+	/** キャンバスと背景を結びつけ、バックエンドを選択する。 */
 	async init(canvas: HTMLCanvasElement, opts: RainOptions = {}): Promise<void> {
 		this.canvas = canvas;
-		this.ctx = canvas.getContext('2d');
-		if (opts.fpsCap) this.frameInterval = 1000 / opts.fpsCap;
+		if (opts.fpsCap) this.fpsCap = opts.fpsCap;
 		if (opts.reducedMotion !== undefined) this.reducedMotion = opts.reducedMotion;
-		this.resize();
-		this.resizeObserver = new ResizeObserver(() => this.resize());
-		this.resizeObserver.observe(canvas);
-		const url = opts.backgroundUrl;
-		if (url) {
-			this.bg = await loadImage(url).catch(() => null);
+		const merged: RainOptions = {
+			...opts,
+			fpsCap: this.fpsCap,
+			reducedMotion: this.reducedMotion
+		};
+
+		// 不透明な窓ガラス描画の見せ隠しフェード（setIntensity と連動）。
+		canvas.style.opacity = '0';
+		canvas.style.transition = 'opacity 250ms linear';
+
+		let webglPoisoned = false;
+		if (!this.reducedMotion && supportsWebGL2()) {
+			let Backend: typeof import('./RaindropFxBackend').RaindropFxBackend | null = null;
+			try {
+				// モジュール読込までは実 canvas に触れない（失敗しても Canvas2D へ行ける）。
+				const mod = await import('./RaindropFxBackend');
+				await mod.RaindropFxBackend.preload();
+				Backend = mod.RaindropFxBackend;
+			} catch (e) {
+				console.warn('rain: raindrop-fx の読込に失敗。Canvas2D にフォールバックします。', e);
+			}
+			if (Backend) {
+				const backend = new Backend();
+				try {
+					await backend.init(canvas, merged); // ここで WebGL コンテキストを取得
+					this.backend = backend;
+				} catch (e) {
+					// コンテキスト取得後の失敗: canvas は 2d を返せないため雨なしに留める。
+					console.error('rain: raindrop-fx の初期化に失敗。雨表現を無効化します。', e);
+					backend.destroy();
+					webglPoisoned = true;
+				}
+			}
 		}
-		this.renderOnce();
+		if (!this.backend && !webglPoisoned) {
+			const { Canvas2DRainBackend } = await import('./Canvas2DRainBackend');
+			this.backend = new Canvas2DRainBackend();
+			await this.backend.init(canvas, merged);
+		}
+
+		this.backend?.setIntensity(this.intensity);
+		this.applyOpacity();
+
+		this.resizeObserver = new ResizeObserver(() => {
+			if (!this.canvas) return;
+			this.backend?.resize(
+				this.canvas.clientWidth || window.innerWidth,
+				this.canvas.clientHeight || window.innerHeight
+			);
+		});
+		this.resizeObserver.observe(canvas);
+		document.addEventListener('visibilitychange', this.onVisibility);
 	}
 
 	/** 雨脚の強さ（0..1）。予兆＝0→強、通り雨＝1、雨上がり＝→0。 */
 	setIntensity(value: number): void {
 		this.intensity = clamp(value, 0, 1);
-		if (this.reducedMotion) this.renderOnce();
+		this.backend?.setIntensity(this.intensity);
+		this.applyOpacity();
 	}
 
 	getIntensity(): number {
 		return this.intensity;
 	}
 
-	/** アニメーション開始。reduced-motion 時は静的表示に留める。 */
+	/** アニメーション開始。非表示中は visibilitychange の復帰時に始める。 */
 	start(): void {
-		if (this.running) return;
-		this.running = true;
-		if (this.reducedMotion) {
-			this.renderOnce();
-			return;
-		}
-		this.lastFrame = performance.now();
-		this.lastSpawn = this.lastFrame;
-		this.rafId = requestAnimationFrame(this.loop);
+		this.desiredRunning = true;
+		if (document.visibilityState !== 'hidden') this.backend?.start();
 	}
 
 	/** アニメーション停止（省電力）。 */
 	stop(): void {
-		this.running = false;
-		if (this.rafId) cancelAnimationFrame(this.rafId);
-		this.rafId = 0;
+		this.desiredRunning = false;
+		this.backend?.stop();
 	}
 
 	/** 後始末。 */
 	destroy(): void {
-		this.stop();
+		if (this.destroyed) return;
+		this.destroyed = true;
+		this.desiredRunning = false;
+		document.removeEventListener('visibilitychange', this.onVisibility);
 		this.resizeObserver?.disconnect();
 		this.resizeObserver = null;
-		this.drops = [];
+		this.backend?.destroy();
+		this.backend = null;
 		this.canvas = null;
-		this.ctx = null;
-		this.bg = null;
 	}
 
-	private resize(): void {
-		if (!this.canvas) return;
-		this.dpr = Math.min(window.devicePixelRatio || 1, 2);
-		const w = this.canvas.clientWidth || window.innerWidth;
-		const h = this.canvas.clientHeight || window.innerHeight;
-		this.canvas.width = Math.floor(w * this.dpr);
-		this.canvas.height = Math.floor(h * this.dpr);
-	}
-
-	private loop = (now: number): void => {
-		if (!this.running) return;
-		this.rafId = requestAnimationFrame(this.loop);
-		const elapsed = now - this.lastFrame;
-		if (elapsed < this.frameInterval) return; // FPS 上限
-		this.lastFrame = now - (elapsed % this.frameInterval);
-		this.step((now - this.lastSpawn) / 1000, now);
-		this.lastSpawn = now;
+	// 被覆・非表示時は確実に止める（§4）。復帰時は望ましい状態を再適用する。
+	// バックエンド側の二重起動ガードと合わせ、連続発火しても rAF は重複しない。
+	private onVisibility = (): void => {
+		if (this.destroyed) return;
+		if (document.visibilityState === 'hidden') {
+			this.backend?.stop();
+		} else if (this.desiredRunning) {
+			this.backend?.start();
+		}
 	};
 
-	private step(dt: number, now: number): void {
-		const { ctx, canvas } = this;
-		if (!ctx || !canvas) return;
-		const w = canvas.width;
-		const h = canvas.height;
-
-		this.drawBackground(ctx, w, h);
-
-		// 強さに応じて生成。通り雨ほど多く・速く。
-		const spawnRate = this.intensity * this.intensity * 6; // 0..6 個/フレーム目安
-		if (Math.random() < spawnRate % 1 || spawnRate >= 1) {
-			const count = Math.max(0, Math.floor(spawnRate));
-			for (let i = 0; i <= count; i++) this.spawnDrop(w, h);
-		}
-
-		// 粒の更新と描画。
-		ctx.save();
-		for (const d of this.drops) {
-			d.y += d.vy * dt * this.dpr;
-			d.life -= dt;
-			this.drawDrop(ctx, d);
-		}
-		ctx.restore();
-		this.drops = this.drops.filter((d) => d.y - d.trail < h && d.life > 0);
-
-		// 全体のしっとり感（強いほど画面を覆う）。
-		void now;
+	// 予兆の序盤（intensity 0→0.3）でガラスが現れきり、雨上がりの終盤で消える。
+	// work 中は intensity 0 → opacity 0 でデスクトップが完全に見える。
+	private applyOpacity(): void {
+		if (!this.canvas) return;
+		this.canvas.style.opacity = String(Math.min(1, this.intensity / 0.3));
 	}
+}
 
-	private spawnDrop(w: number, h: number): void {
-		const big = Math.random() < 0.15;
-		const r = (big ? 6 + Math.random() * 8 : 2 + Math.random() * 4) * this.dpr;
-		this.drops.push({
-			x: Math.random() * w,
-			y: -r,
-			r,
-			vy: (40 + Math.random() * 120) * (0.4 + this.intensity),
-			trail: (big ? 60 + Math.random() * 120 : 20 + Math.random() * 50) * this.dpr,
-			life: 4 + Math.random() * 4
-		});
-		void h;
-	}
-
-	private drawBackground(ctx: CanvasRenderingContext2D, w: number, h: number): void {
-		// [一時デモ] 透過確認用: 不透明な背景画像を描かず、透明にクリアして
-		// 背後のデスクトップが雨越しに透けるかを目視確認する。
-		// （本来は bg/default.png を屈折元に不透明描画＝モードA）
-		ctx.clearRect(0, 0, w, h);
-		// 軽いベール（強さに応じて少しだけ曇らせる。透過は保つ）。
-		const veil = 0.02 + this.intensity * 0.12;
-		ctx.fillStyle = `rgba(12, 17, 24, ${veil})`;
-		ctx.fillRect(0, 0, w, h);
-	}
-
-	private drawDrop(ctx: CanvasRenderingContext2D, d: Drop): void {
-		// 尾（流れた跡）。
-		const grad = ctx.createLinearGradient(d.x, d.y - d.trail, d.x, d.y);
-		grad.addColorStop(0, 'rgba(190, 210, 235, 0)');
-		grad.addColorStop(1, `rgba(190, 210, 235, ${0.18 + this.intensity * 0.22})`);
-		ctx.strokeStyle = grad;
-		ctx.lineWidth = Math.max(1, d.r * 0.5);
-		ctx.beginPath();
-		ctx.moveTo(d.x, d.y - d.trail);
-		ctx.lineTo(d.x, d.y);
-		ctx.stroke();
-
-		// 粒（簡易な屈折ハイライト）。
-		ctx.beginPath();
-		ctx.fillStyle = `rgba(220, 232, 245, ${0.35 + this.intensity * 0.25})`;
-		ctx.arc(d.x, d.y, d.r, 0, Math.PI * 2);
-		ctx.fill();
-		ctx.beginPath();
-		ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-		ctx.arc(d.x - d.r * 0.3, d.y - d.r * 0.3, d.r * 0.3, 0, Math.PI * 2);
-		ctx.fill();
-	}
-
-	/** 1 フレームだけ描く（静止・初期表示・reduced-motion 用）。 */
-	private renderOnce(): void {
-		const { ctx, canvas } = this;
-		if (!ctx || !canvas) return;
-		this.drawBackground(ctx, canvas.width, canvas.height);
-		if (this.reducedMotion && this.intensity > 0) {
-			// 動かさず、まばらな静止した粒だけ描く。
-			const n = Math.floor(this.intensity * 40);
-			for (let i = 0; i < n; i++) {
-				this.drawDrop(ctx, {
-					x: Math.random() * canvas.width,
-					y: Math.random() * canvas.height,
-					r: (2 + Math.random() * 4) * this.dpr,
-					vy: 0,
-					trail: 0,
-					life: 1
-				});
-			}
-		}
+function supportsWebGL2(): boolean {
+	// 実 canvas で試すと以後 2d コンテキストが取れなくなるため、
+	// 必ず使い捨ての canvas で判定する。
+	try {
+		return !!document.createElement('canvas').getContext('webgl2');
+	} catch {
+		return false;
 	}
 }
 
 function clamp(v: number, lo: number, hi: number): number {
 	return Math.min(hi, Math.max(lo, v));
-}
-
-function loadImage(url: string): Promise<HTMLImageElement> {
-	return new Promise((resolve, reject) => {
-		const img = new Image();
-		img.onload = () => resolve(img);
-		img.onerror = reject;
-		img.src = url;
-	});
-}
-
-function drawImageCover(
-	ctx: CanvasRenderingContext2D,
-	img: HTMLImageElement,
-	w: number,
-	h: number
-): void {
-	const ir = img.width / img.height;
-	const cr = w / h;
-	let dw = w;
-	let dh = h;
-	if (ir > cr) {
-		dh = h;
-		dw = h * ir;
-	} else {
-		dw = w;
-		dh = w / ir;
-	}
-	ctx.drawImage(img, (w - dw) / 2, (h - dh) / 2, dw, dh);
 }
