@@ -20,7 +20,7 @@
 | **macOS**（Intel） | `..._x64.dmg` | Intel Mac |
 | **Windows** | `..._x64-setup.exe` | Windows 10/11 |
 
-> 上記リンクの **Assets** から各OSのインストーラを取得できます（リリース公開後に表示されます）。過去版は [リリース一覧](https://github.com/katusaburou/Rainbreak/releases) から。
+> **初回リリース（v0.1.0）は公開準備中です。** インストーラのビルド〜ドラフト作成までは CI で確認済みで、公開後に上記リンクの **Assets** から各OSのインストーラを取得できます。過去版は [リリース一覧](https://github.com/katusaburou/Rainbreak/releases) から。
 > **未署名配布**のため、初回起動時はOSの警告回避が必要です → [インストール手順](#インストール)。
 
 ---
@@ -37,6 +37,8 @@
 梅雨どきのしんみりした空気感を基調に、集中と休息のリズムをやわらかく区切ることを目的としています。
 
 > 仮称「雨やどり」。名称は未確定です。
+
+> **開発状況（2026年6月時点）**: MVP の機能実装と配布 CI は一通り完了しています。残るは初回リリースの公開と実機検証です → [実装状況 / ロードマップ](#実装状況--ロードマップ)。
 
 ---
 
@@ -67,7 +69,7 @@
 
 ## 体験フロー（状態遷移）
 
-4つのフェーズを Rust 側の状態機械が駆動します。**時間の真実は常に Rust 側**にあり、WebView は描画と演出に専念します。
+4つのフェーズを Rust 側の状態機械（`crates/core`・早送りの単体テストで遷移を固定）が駆動します。**時間の真実は常に Rust 側**にあり、WebView は描画と演出に専念します。
 
 ```mermaid
 stateDiagram-v2
@@ -75,7 +77,7 @@ stateDiagram-v2
     state "作業 Work\nオーバーレイ hide / HUDバーのみ" as Work
     state "予兆 Incoming\n全画面・透過・クリックスルーON / 雨 0→強" as Incoming
     state "通り雨 Shower\n全画面・クリックスルーOFF / 雨 強 / Skip可" as Shower
-    state "雨上がり Clearing\n雨フェードアウト→退避" as Clearing
+    state "雨上がり Clearing（3秒）\n雨フェードアウト→退避" as Clearing
 
     Work --> Incoming: 作業残り30秒
     Incoming --> Shower: 作業時間 満了
@@ -89,9 +91,9 @@ stateDiagram-v2
 | フェーズ | 全画面オーバーレイ | 隅HUD（バー） | always-on-top | クリックスルー | 雨 | 音 | 操作 |
 |---|---|---|---|---|---|---|---|
 | **作業** | hide | 表示（残り＝作業バー） | HUDのみ | — | なし | OFF | — |
-| **予兆**（30秒） | 全画面・透過 | 表示（ほぼ満了） | ON | **ON** | 0→強へ漸増 | （任意）小 | 後ろのアプリ操作可（作業継続） |
+| **予兆**（30秒） | 全画面・透過 | 表示（ほぼ満了） | ON | **ON** | 0→強へ漸増 | なし | 後ろのアプリ操作可（作業継続） |
 | **通り雨**（休憩） | 全画面 | 非表示 | ON | **OFF** | 強 | フェードイン | **Skip／Esc で作業へ** |
-| **雨上がり** | 全画面→hide | 作業復帰時に再表示 | ON→OFF | OFF | 強→消滅 | フェードアウト | — |
+| **雨上がり**（3秒） | 全画面→hide | 作業復帰時に再表示 | ON→OFF | OFF | 強→消滅 | フェードアウト | — |
 
 ---
 
@@ -102,7 +104,7 @@ flowchart TB
     subgraph Core["Rust / Tauri Core — 時間の真実"]
         direction TB
         SCH["スケジューラ<br/>tokio interval"]
-        SM["フェーズ状態機械"]
+        SM["フェーズ状態機械<br/>crates/core（Tauri 非依存）"]
         WIN["ウィンドウ制御"]
         TRAY["トレイ / メニューバー"]
         CFG["設定の永続化"]
@@ -113,9 +115,9 @@ flowchart TB
 
     subgraph Front["SvelteKit / WebView — 描画と演出"]
         direction TB
-        RAIN["雨レンダリング<br/>WebGL / raindrop-fx"]
+        RAIN["雨レンダリング<br/>raindrop-fx（WebGL2）<br/>＋ Canvas2D フォールバック"]
         HUDV["HUDバー（数字なし）"]
-        AUD["雨音<br/>Web Audio / Tone.js"]
+        AUD["雨音<br/>Web Audio（自前合成）"]
         SET["設定UI"]
     end
 
@@ -136,9 +138,9 @@ flowchart TB
 |---|---|---|
 | シェル | **Tauri 2** | 常駐フットプリントが決め手。インストーラ10MB未満・メモリ30〜50MB（Electron は80〜150MB／150〜300MB）。 |
 | フロントエンド | **SvelteKit** | そのまま動作。増える Rust 表面積は小さい。 |
-| 雨描画 | **WebGL**（`raindrop-fx` 等 / Codrops 系自前実装） | 背景テクスチャを屈折元に使う「モードA」にそのまま適合。 |
-| スケジューラ | **Rust**（tokio interval） | バックエンド駆動でタイマー精度を担保。 |
-| 音 | **Web Audio**（Tone.js 等） | 雨音のフェードイン／アウト。 |
+| 雨描画 | **raindrop-fx**（WebGL2）＋ Canvas2D フォールバック | 背景の静止画を屈折元に使う「モードA」。粒の合体・蛇行滑落・トレイルはライブラリが担い、雨脚 0..1 をパラメータへ写像。WebGL2 が無い環境と reduced-motion 時は追加依存なしの Canvas2D 簡易版へ自動フォールバック。 |
+| スケジューラ | **Rust**（tokio interval） | バックエンド駆動でタイマー精度を担保。状態機械は `crates/core` に分離し単体テスト。 |
+| 音 | **Web Audio**（自前合成） | 擬似ピンクノイズ＋ローパスで雨音を合成（音声アセット・外部ライブラリ不使用）。フェードイン／アウト。 |
 
 > **Electron を選ぶ条件**（不採用理由の裏返し）: Linux 含む全OSで WebGL を盤石にしたい、または Rust を一切入れたくない場合のみ。本件はどちらにも当たりません。
 
@@ -150,7 +152,7 @@ flowchart TB
 |---|---|
 | 対応OS | **macOS（WKWebView）／ Windows 10 1803以降・11（WebView2）**。**Linux は対象外**。 |
 | WebView2（Windows） | 11 は全機プリインストール。10 にも配布済みだが、ごく一部は未導入 → Tauri インストーラが `downloadBootstrapper` で自動導入。 |
-| パフォーマンス | FPS上限 30fps 目安。待機・非表示・被覆時はレンダリング停止で省電力。 |
+| パフォーマンス | 作業中（雨なし）・非表示・被覆時は描画を完全停止して省電力。Canvas2D フォールバックは 30fps 上限（raindrop-fx は内部 rAF 駆動）。 |
 | アクセシビリティ | `prefers-reduced-motion` を**自動で尊重**（演出を簡略化／無効化）。Skip／Esc を常備し、ユーザーを閉じ込めない。 |
 
 ---
@@ -191,6 +193,8 @@ pnpm tauri build                 # 各OSインストーラを生成
 ```
 
 > アイコン（`src-tauri/icons/`）と素材は生成物のため git 管理外です。`pnpm tauri dev/build` の前に上記の生成コマンドを一度実行してください（CI は自動で実行します）。
+
+> Tauri を介さないブラウザプレビューも可能です: `pnpm dev` で `http://localhost:5173/overlay?phase=shower` のように開くと、dev ビルド限定の `?phase=` クエリでフェーズを手動再現できます（Tauri 外ではフェーズイベントが届かないため）。
 
 ### テスト / チェック
 ```sh
@@ -247,19 +251,29 @@ Rainbreak/
 
 ---
 
-## ロードマップ
+## 実装状況 / ロードマップ
 
-### MVP（最小）
-- 設定可能な 20/5 サイクル
-- 4フェーズ（作業／予兆／通り雨／雨上がり）とウィンドウ連動
-- 雨描画（自前背景1枚 ＋ raindrop-fx）
-- 隅の HUD バー（数字なし・常時クリックスルー）
-- トレイ常駐 ＋ 残り時間表示
-- Skip／Esc
-- GitHub Releases で未署名配布（mac `.dmg` / win `-setup.exe`）＋手順
+**2026年6月時点**: MVP の機能は一通り実装済みです。コアの状態機械は早送りの単体テスト（14件）で遷移を固定し、CI とリリースワークフロー（インストーラのビルド〜ドラフト作成）も動作確認済み。残るは実機検証ゲートと初回リリースの公開です。
+
+### 実装済み（MVP）
+- [x] 設定可能な 20/5 サイクル（`crates/core` の状態機械 ＋ tokio の1秒 tick。WebView は時間を持たない）
+- [x] 4フェーズ（作業／予兆30秒／通り雨／雨上がり3秒）とウィンドウ連動（最前面・クリックスルー・表示/退避の切替）
+- [x] 雨描画（自前背景1枚 ＋ raindrop-fx。WebGL2 が無い環境と reduced-motion 時は Canvas2D 簡易版へ自動フォールバック）
+- [x] 隅の HUD バー（数字なし・常時クリックスルー・終盤だけ暖色へ寄る goal-gradient）
+- [x] 雨音（Web Audio で合成。通り雨でフェードイン／雨上がりでフェードアウト、音量・ミュートを即時反映）
+- [x] トレイ常駐 ＋ 残り時間表示（ツールチップにフェーズと mm:ss。一時停止/再開・Skip・設定・終了）
+- [x] Skip／Esc（Esc はグローバルショートカット。作業中は登録解除して他アプリの Esc を奪わない）
+- [x] 設定UIと永続化（サイクル長・音量/ミュート・自動起動。OS 設定ディレクトリの JSON）
+- [x] `prefers-reduced-motion` の自動尊重（雨を静的表示へ簡略化）
+- [x] CI（状態機械テスト／フロント型チェック・ビルド／mac・win コンパイル検証）とリリースワークフロー（tauri-action）
+
+### 公開前の残作業
+- [ ] 実機検証ゲート — 特に macOS 全画面共存はネイティブ実装が未着手（詳細は下記「⚠️ 技術検証ゲート（未了）」）
+- [ ] 初回リリース v0.1.0 の公開（ドラフト作成までは確認済み）
+- [ ] 背景静止画の差し替え（現在は `tools/gen-assets.mjs` が生成するプレースホルダ）
 
 ### 後続（拡張）
-- 予兆の演出磨き込み、雨音とフェード
+- 予兆の演出磨き込み
 - 自動アップデート（updater + `latest.json`）
 - サイクル統計
 - （必要なら）コード署名
@@ -274,7 +288,8 @@ Rainbreak/
   - **タグ push**: `git tag v0.1.0 && git push origin v0.1.0`（`v*` で発火）。
   - **手動実行**: GitHub の **Actions → release → Run workflow** で `version`（例 `v0.1.0`）を入力。タグを push できない環境向け。実行したコミットに同名タグを作成する。
   - いずれもドラフトのリリースが作られるため、内容を確認して **Publish** すると一般公開される。
-- 生成物: macOS `.dmg`、Windows `.msi`(WiX) / `-setup.exe`(NSIS)。
+  - 初回の **v0.1.0 はこのフローでドラフト作成まで確認済み**（未公開）。
+- 生成物: macOS `.dmg`（Apple Silicon / Intel）、Windows `-setup.exe`（NSIS）。
 - **未署名で配布**し、本 README とリリースノートに手順を明記。
 - 自動アップデート（任意）: updater プラグイン ＋ `includeUpdaterJson: true` で `latest.json` を同梱（Tauri 更新用署名鍵が必要。OSのコード署名とは別物）。
 
@@ -284,14 +299,14 @@ Rainbreak/
 
 ---
 
-## ⚠️ 着工前の技術検証ゲート
+## ⚠️ 技術検証ゲート（未了）
 
-フル実装の前に、設計の前提を支える2点を最小プロトタイプで潰します。ここが転ぶと設計を組み替える必要があります。
+実装は骨格を先行させたため、設計の前提を支える次の2点は**実機検証が未了のまま残っています**。ここが転ぶと設計を組み替える必要があります。
 
-1. **macOS：ユーザーの全画面アプリ上へのオーバーレイ表示。** 全画面エディタ／動画／Zoom の**上に**予兆・通り雨が出るか（`NSWindowCollectionBehaviorFullScreenAuxiliary` ＋ `canJoinAllSpaces` ＋ window level）。**未達なら中核体験が発火しない最優先課題**。
+1. **macOS：ユーザーの全画面アプリ上へのオーバーレイ表示。** 全画面エディタ／動画／Zoom の**上に**予兆・通り雨が出るか。必要なネイティブ実装（`NSWindowCollectionBehaviorFullScreenAuxiliary` ＋ `canJoinAllSpaces` ＋ window level）は**未着手**で、現状の overlay は「最前面＋maximize」のみ（`src-tauri/src/windows.rs` 参照）。**未達なら中核体験が発火しない最優先課題**。
 2. **予兆 → 通り雨のクリックスルー切替の体感。** `setIgnoreCursorEvents` ON→OFF 切替時のクリック取りこぼし／誤クリックを mac / win 両方で確認。
 
-> 副次的に、内蔵GPU 機での通り雨フルスクリーン時の実機FPS も同じプロトで測ります。詳細は実装計画 **Phase 0** を参照。
+> 副次的に、内蔵GPU 機での通り雨フルスクリーン時の実機FPS も測ります（raindrop-fx の粒数上限は計測結果で引き上げる前提の保守値）。詳細は実装計画 **Phase 0** を参照。
 
 ---
 
