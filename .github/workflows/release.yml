@@ -62,10 +62,18 @@ jobs:
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # 自動アップデート用の更新署名鍵（パスワードなしで生成済み）。
+          # リポジトリ Settings → Secrets and variables → Actions に登録する。
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          # 鍵はパスワードなし。空文字を明示して CI の対話プロンプトを防ぐ。
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ''
         with:
           # タグ push 時は github.ref_name、手動実行時は入力 version を使う。
           tagName: ${{ github.event.inputs.version || github.ref_name }}
           releaseName: '雨やどり ${{ github.event.inputs.version || github.ref_name }}'
           releaseDraft: true
           prerelease: false
+          # 自動アップデートのマニフェスト latest.json を Release に同梱する。
+          # matrix 各ジョブのプラットフォーム情報は同一 Release 上でマージされる。
+          includeUpdaterJson: true
           args: ${{ matrix.target && format('--target {0}', matrix.target) || '' }}

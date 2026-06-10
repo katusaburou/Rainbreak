@@ -64,6 +64,7 @@
 	"bundle": {
 		"active": true,
 		"targets": ["dmg", "nsis"],
+		"createUpdaterArtifacts": true,
 		"icon": [
 			"icons/32x32.png",
 			"icons/128x128.png",
@@ -75,5 +76,15 @@
 		"shortDescription": "雨やどり — 通り雨で休む作業タイマー",
 		"longDescription": "ポモドーロ型の作業タイマー × 窓ガラスを流れる雨のアンビエント表現。集中中は隅の穏やかなバーだけが残り時間を伝え、休憩前から雨が徐々に強まる。"
 	},
-	"plugins": {}
+	"plugins": {
+		"updater": {
+			"pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDY4NEEzNkVBRDUwQUU2MUEKUldRYTVnclY2alpLYU5lSnVNWUFPRmhVUTZqUEpUTVBlbTdBWGgwWG5ZcEsydVczTTRlNXV4RGEK",
+			"endpoints": [
+				"https://github.com/katusaburou/rainbreak/releases/latest/download/latest.json"
+			],
+			"windows": {
+				"installMode": "passive"
+			}
+		}
+	}
 }

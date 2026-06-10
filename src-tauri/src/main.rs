@@ -8,6 +8,7 @@ mod scheduler;
 mod shortcuts;
 mod state;
 mod tray;
+mod updater;
 mod windows;
 
 use std::sync::Mutex;
@@ -20,6 +21,8 @@ use crate::state::AppState;
 
 fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
@@ -74,6 +77,7 @@ fn main() {
             }
 
             scheduler::spawn(handle.clone());
+            updater::spawn_startup_check(handle);
             Ok(())
         })
         .run(tauri::generate_context!())
