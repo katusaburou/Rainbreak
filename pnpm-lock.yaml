@@ -11,6 +11,9 @@ importers:
       '@tauri-apps/api':
         specifier: ^2.1.0
         version: 2.11.0
+      raindrop-fx:
+        specifier: ^1.0.8
+        version: 1.0.8
     devDependencies:
       '@sveltejs/adapter-static':
         specifier: ^3.0.6
@@ -340,6 +343,9 @@ packages:
     cpu: [x64]
     os: [win32]
 
+  '@sardinefish/zogra-renderer@1.2.0':
+    resolution: {integrity: sha512-0wbAzhi5AAtbHMF6zzVx3ISFPsqLmaJLhkZfm3dFbnThXDqGf/6Gj71nmXBPtzcV0oQOWm8bFpu1a0S7/pGLQg==}
+
   '@standard-schema/spec@1.1.0':
     resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
 
@@ -550,6 +556,9 @@ packages:
     engines: {node: ^8.16.0 || ^10.6.0 || >=11.0.0}
     os: [darwin]
 
+  gl-matrix@3.4.4:
+    resolution: {integrity: sha512-latSnyDNt/8zYUB6VIJ6PCh2jBjJX6gnDsoCZ7LyW7GkqrD51EWwa9qCoGixj8YqBtETQK/xY7OmpTF8xz1DdQ==}
+
   is-reference@3.0.3:
     resolution: {integrity: sha512-ixkJoqQvAP88E6wLydLGGqCJsrFUnqoH6HnaczB8XmDH1oaWU+xxdptvikTgaEhtZ53Ky6YXiBuUI2WXLMCwjw==}
 
@@ -586,9 +595,15 @@ packages:
     resolution: {integrity: sha512-FfR8sjd4em2T6fb3I2MwAJU7HWVMr9zba+enmQeeWFfCbm+UOC/0X4DS8XtpUTMwWMGbjKYP7xjfNekzyGmB3A==}
     engines: {node: ^10 || ^12 || >=14}
 
+  raindrop-fx@1.0.8:
+    resolution: {integrity: sha512-KcCeENGsFN70jVpdmRTxUJiU012oUhrHdR0n6XmMy2euJu95QcB2Uv5Om/mzzZGoyRcD650+H5yP/Q54mdi1Pw==}
+
   readdirp@4.1.2:
     resolution: {integrity: sha512-GDhwkLfywWL2s6vEjyhri+eXmfH6j1L7JE27WhqLeYzoh/A3DBaYGEj2H/HFZCn/kMfim73FXxEJTw06WtxQwg==}
     engines: {node: '>= 14.18.0'}
+
+  reflect-metadata@0.1.14:
+    resolution: {integrity: sha512-ZhYeb6nRaXCfhnndflDK8qI6ZQ/YcWZCISRAWICW9XYqMUwjZM9Z0DveWX/ABN01oxSHwVxKQmxeYZSsm0jh5A==}
 
   rollup@4.61.1:
     resolution: {integrity: sha512-I4KW6iuRpuu2uHBLraZ1wNZe0DP7lnRha+VJ9tNaYVaVgKhW0aI3h4RYnoRPeql0flHm/Co55b7snEDcOfOJrA==}
@@ -846,6 +861,11 @@ snapshots:
   '@rollup/rollup-win32-x64-msvc@4.61.1':
     optional: true
 
+  '@sardinefish/zogra-renderer@1.2.0':
+    dependencies:
+      gl-matrix: 3.4.4
+      reflect-metadata: 0.1.14
+
   '@standard-schema/spec@1.1.0': {}
 
   '@sveltejs/acorn-typescript@1.0.10(acorn@8.16.0)':
@@ -1018,6 +1038,8 @@ snapshots:
   fsevents@2.3.3:
     optional: true
 
+  gl-matrix@3.4.4: {}
+
   is-reference@3.0.3:
     dependencies:
       '@types/estree': 1.0.9
@@ -1046,7 +1068,13 @@ snapshots:
       picocolors: 1.1.1
       source-map-js: 1.2.1
 
+  raindrop-fx@1.0.8:
+    dependencies:
+      '@sardinefish/zogra-renderer': 1.2.0
+
   readdirp@4.1.2: {}
+
+  reflect-metadata@0.1.14: {}
 
   rollup@4.61.1:
     dependencies:

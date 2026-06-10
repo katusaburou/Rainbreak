@@ -1,2 +1,2 @@
 export { RainRenderer } from './RainRenderer';
-export type { RainOptions } from './RainRenderer';
+export type { RainOptions } from './types';
