@@ -12,5 +12,6 @@
 mod phase;
 
 pub use phase::{
-    CycleConfig, Phase, TimerSnapshot, Timer, CLEARING_SECS, INCOMING_LEAD_SECS,
+    CycleConfig, Phase, TimerSnapshot, Timer, CLEARING_SECS, FINAL_CLEARING_SECS,
+    INCOMING_LEAD_SECS,
 };

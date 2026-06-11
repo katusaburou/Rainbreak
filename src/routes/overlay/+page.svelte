@@ -20,12 +20,15 @@
 	// 雨が描けない劣化モード（WebGL2 なし / reduced-motion / 初期化失敗）。
 	// canvas に CSS の静的ベールを出して「通り雨中」を可視化する。
 	let degraded = $state(false);
+	// 最終セットの雨上がりに架かる虹（案1）。表示中だけ DOM に置く。
+	let rainbow = $state(false);
 	let rain: RainRenderer | null = null;
 	let audio: RainAudio | null = null;
 	let clearingTimer: ReturnType<typeof setInterval> | null = null;
 	const unlisten: UnlistenFn[] = [];
 
 	const CLEARING_SECS = 3; // Rust の CLEARING_SECS と一致
+	const FINAL_CLEARING_SECS = 10; // Rust の FINAL_CLEARING_SECS と一致（虹のタイムライン）
 
 	// 予兆（休憩 30 秒前〜）のガラス不透明度の上限。1 未満に抑えることで、
 	// クリックスルーと合わせて背後のライブ画面が読める＝作業を続けられる。
@@ -81,10 +84,13 @@
 		}
 	}
 
-	function applyPhase(next: Phase) {
+	function applyPhase(next: Phase, lastSet = false) {
 		phase = next;
 		if (!rain) return;
 		stopClearingTween();
+		// 虹と余韻は雨上がり（最終セット）限定。他フェーズへ移ったら引っ込める。
+		rainbow = false;
+		audio?.cancelAfterglow();
 		switch (next) {
 			case 'work':
 			// セット終了は今のところ作業と同じ退避のみ（終了演出はここに差し込む）。
@@ -129,6 +135,12 @@
 						rain?.stop();
 					}
 				}, 1000 / 30);
+				// 最終セットの雨上がり（FINAL_CLEARING_SECS）: 雨が引いたあとに
+				// 虹を架け（案1）、雫と遠くの鳥の余韻を鳴らす（案3）。
+				if (lastSet) {
+					rainbow = true;
+					audio?.playAfterglow(CLEARING_SECS);
+				}
 				break;
 			}
 		}
@@ -158,7 +170,7 @@
 		}
 
 		try {
-			unlisten.push(await onPhaseChanged((p) => applyPhase(p.phase)));
+			unlisten.push(await onPhaseChanged((p) => applyPhase(p.phase, p.last_set)));
 			unlisten.push(
 				await onIncomingProgress((p) => {
 					if (phase === 'incoming') rain?.setIntensity(p.p);
@@ -177,8 +189,10 @@
 
 		// [dev プレビュー] Tauri 外では phase イベントが来ないため、
 		// ?phase=shower などのクエリでフェーズを手動再現できるようにする。
+		// ?phase=clearing&last=1 で最終セットの虹・余韻も確認できる。
 		if (dev && !('__TAURI_INTERNALS__' in window)) {
-			const p = new URLSearchParams(location.search).get('phase');
+			const params = new URLSearchParams(location.search);
+			const p = params.get('phase');
 			if (
 				p === 'work' ||
 				p === 'incoming' ||
@@ -186,7 +200,7 @@
 				p === 'clearing' ||
 				p === 'finished'
 			) {
-				applyPhase(p);
+				applyPhase(p, params.get('last') === '1');
 			}
 		}
 	});
@@ -203,6 +217,10 @@
 
 <div class="overlay">
 	<canvas bind:this={canvas} class:degraded></canvas>
+
+	{#if rainbow}
+		<div class="rainbow" style:animation-duration={`${FINAL_CLEARING_SECS}s`}></div>
+	{/if}
 
 	{#if phase === 'shower'}
 		<div class="escape">
@@ -235,6 +253,49 @@
 	   同じ canvas の opacity 制御（intensity × maxOpacity）に乗る。 */
 	canvas.degraded {
 		background: linear-gradient(180deg, rgba(13, 18, 26, 0.72), rgba(22, 31, 44, 0.88));
+	}
+	/* 通り雨をすべてやり過ごした最終セットだけに架かる、ぼんやりした虹。
+	   画面下のさらに下を中心とする大円の上弧だけを見せる。動きは opacity のみ
+	   なので reduced-motion でも穏やか。劣化モードでも出す（CSS のみで描ける）。 */
+	.rainbow {
+		position: absolute;
+		inset: 0;
+		pointer-events: none;
+		/* 光として加算的に乗せる。暗い画面ほどよく見え、明るい画面ではほのかに残る。 */
+		mix-blend-mode: screen;
+		background: radial-gradient(
+			circle 110vh at 50% 150vh,
+			transparent 85%,
+			rgba(167, 139, 250, 0.4) 87%,
+			rgba(125, 211, 252, 0.5) 89%,
+			rgba(134, 239, 172, 0.5) 91%,
+			rgba(253, 224, 71, 0.55) 93%,
+			rgba(251, 146, 60, 0.55) 94.5%,
+			rgba(252, 165, 165, 0.45) 96.5%,
+			transparent 98.5%
+		);
+		filter: blur(9px) saturate(1.25);
+		opacity: 0;
+		animation-name: rainbow-arc;
+		animation-timing-function: ease-in-out;
+		animation-fill-mode: forwards;
+		/* animation-duration はマークアップ側で FINAL_CLEARING_SECS に同期 */
+	}
+	/* 序盤（雨がまだ残る 0〜26% ≒ CLEARING_SECS）は出さず、半ばで満ち、終わりに引く。 */
+	@keyframes rainbow-arc {
+		0%,
+		26% {
+			opacity: 0;
+		}
+		50% {
+			opacity: 1;
+		}
+		76% {
+			opacity: 1;
+		}
+		100% {
+			opacity: 0;
+		}
 	}
 	.escape {
 		position: absolute;

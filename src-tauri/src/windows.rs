@@ -7,7 +7,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 use std::time::Duration;
 
-use rainbreak_core::Phase;
+use rainbreak_core::{Phase, TimerSnapshot};
 use tauri::{AppHandle, Manager, PhysicalPosition, PhysicalSize, WebviewWindow};
 
 use crate::config::{self, UiState};
@@ -98,11 +98,11 @@ fn exclude_from_capture(win: &WebviewWindow) {
 fn exclude_from_capture(_win: &WebviewWindow) {}
 
 /// フェーズに応じて 2 窓の属性を切り替える。
-pub fn apply_phase(app: &AppHandle, phase: Phase) {
+pub fn apply_phase(app: &AppHandle, snap: &TimerSnapshot) {
     let overlay = app.get_webview_window("overlay");
     let hud = app.get_webview_window("hud");
 
-    match phase {
+    match snap.phase {
         // 作業・セット終了: overlay 退避、HUD のみ表示。他アプリ操作を一切妨げない。
         Phase::Work | Phase::Finished => {
             if let Some(o) = &overlay {
@@ -138,8 +138,16 @@ pub fn apply_phase(app: &AppHandle, phase: Phase) {
                 let _ = h.hide();
             }
         }
-        // 雨上がり: フェードはフロントが演出。退避は Work 遷移で行う。
-        Phase::Clearing => {}
+        // 雨上がり: フェードはフロントが演出。退避は Work / セット終了遷移で行う。
+        // 最終セットの雨上がりは虹の余韻ぶん長いので、クリックスルーにして
+        // 雨が引いた時点から背後の作業へ戻れるようにする（虹は眺めるだけ）。
+        Phase::Clearing => {
+            if snap.last_set {
+                if let Some(o) = &overlay {
+                    let _ = o.set_ignore_cursor_events(true);
+                }
+            }
+        }
     }
 }
 

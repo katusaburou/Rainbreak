@@ -15,6 +15,8 @@ struct PhasePayload {
     phase: &'static str,
     remaining_secs: u32,
     cycle: u32,
+    /// 最終セットか（雨上がりで虹と余韻を出すかの判定に使う）。
+    last_set: bool,
 }
 
 #[derive(Clone, Serialize)]
@@ -52,9 +54,10 @@ pub fn broadcast(app: &AppHandle, snap: &TimerSnapshot, seg_total: u32) {
                 phase: snap.phase.as_str(),
                 remaining_secs: snap.remaining_secs,
                 cycle: snap.cycle,
+                last_set: snap.last_set,
             },
         );
-        windows::apply_phase(app, snap.phase);
+        windows::apply_phase(app, snap);
         shortcuts::sync(app, snap.phase);
     }
 

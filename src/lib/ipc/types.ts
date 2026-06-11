@@ -9,6 +9,8 @@ export interface PhaseChanged {
 	phase: Phase;
 	remaining_secs: number;
 	cycle: number;
+	/** 最終セットか（雨上がり clearing で虹と余韻を出す判定に使う）。 */
+	last_set: boolean;
 }
 
 /** `tick` イベント。毎秒。HUD バーの充填率・トレイ残り時間に使う。 */
