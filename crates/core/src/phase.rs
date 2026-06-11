@@ -190,16 +190,21 @@ impl Timer {
         }
     }
 
-    /// Skip / Esc: どのフェーズからでも次の区切りへ進む（要件 §3.5）。
+    /// Skip / Esc: 現在の区切りを先へ送る（要件 §3.5）。
     ///
-    /// 通常は次の作業サイクルへ。設定セット数を消化していたらセット終了へ、
-    /// セット終了からは新しいセッション（セット 1）を開始する。
+    /// 予兆からは「雨の先送り」として常に新しい作業サイクルへ戻す（予兆は
+    /// 作業時間の一部であり、「Esc（予兆を中止）→作業へ」を最終セットでも保つ。
+    /// セット終了はその先送りしたサイクルの雨上がりまで延びる）。
+    /// それ以外は次の作業サイクルへ進み、設定セット数を消化していたら
+    /// セット終了へ。セット終了からは新しいセッション（セット 1）を開始する。
     pub fn skip(&mut self) -> TimerSnapshot {
-        if self.phase == Phase::Finished {
-            self.cycle = 0; // enter_work の加算で 1 に戻る
-            self.enter_work();
-        } else {
-            self.advance_cycle();
+        match self.phase {
+            Phase::Incoming => self.enter_work(),
+            Phase::Finished => {
+                self.cycle = 0; // enter_work の加算で 1 に戻る
+                self.enter_work();
+            }
+            _ => self.advance_cycle(),
         }
         self.snapshot(true)
     }
@@ -574,6 +579,29 @@ mod tests {
         assert_eq!(s.phase, Phase::Work);
         assert_eq!(s.remaining_secs, 120);
         assert_eq!(s.cycle, 1); // セットは 1 から数え直す
+    }
+
+    #[test]
+    fn skip_from_incoming_on_last_set_defers_rain_not_finish() {
+        let mut t = timer_with_sets(1);
+        for _ in 0..90 {
+            t.tick();
+        }
+        assert_eq!(t.phase(), Phase::Incoming);
+        // 予兆の中止は最終セットでも「雨の先送り」: セット終了にせず作業へ戻す。
+        let s = t.skip();
+        assert_eq!(s.phase, Phase::Work);
+        assert_eq!(s.remaining_secs, 120);
+        // 先送りしたサイクルを終えると、改めて虹つきの雨上がり→セット終了。
+        for _ in 0..180 {
+            t.tick();
+        }
+        assert_eq!(t.phase(), Phase::Clearing);
+        assert_eq!(t.remaining_secs(), FINAL_CLEARING_SECS);
+        for _ in 0..FINAL_CLEARING_SECS as usize {
+            t.tick();
+        }
+        assert_eq!(t.phase(), Phase::Finished);
     }
 
     #[test]
