@@ -1,14 +1,16 @@
 // Rust コア（src-tauri）とやり取りするイベント／コマンドの型。
 // Rust 側のペイロードと **フィールド名を一致** させること（serde）。
 
-/** 4 フェーズ。Rust の `Phase::as_str()` と一致。 */
-export type Phase = 'work' | 'incoming' | 'shower' | 'clearing';
+/** 4 フェーズ ＋ 終端のセット終了。Rust の `Phase::as_str()` と一致。 */
+export type Phase = 'work' | 'incoming' | 'shower' | 'clearing' | 'finished';
 
 /** `phase-changed` イベント。フェーズ遷移時に各窓が見た目を切り替える。 */
 export interface PhaseChanged {
 	phase: Phase;
 	remaining_secs: number;
 	cycle: number;
+	/** 最終セットか（雨上がり clearing で虹と余韻を出す判定に使う）。 */
+	last_set: boolean;
 }
 
 /** `tick` イベント。毎秒。HUD バーの充填率・トレイ残り時間に使う。 */
@@ -34,4 +36,6 @@ export interface AppConfig {
 	autostart: boolean;
 	/** HUD バーの不透明度 0.1..=1.0（1 = 透過なし）。 */
 	hud_opacity: number;
+	/** セット数（作業サイクルの回数）。0 = 無制限。 */
+	sets: number;
 }

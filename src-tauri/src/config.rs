@@ -19,6 +19,9 @@ pub struct AppConfig {
     /// HUD バーの不透明度 0.1..=1.0（旧設定ファイルには無いので default で補う）。
     #[serde(default = "default_hud_opacity")]
     pub hud_opacity: f32,
+    /// セット数（作業サイクルの回数）。0 = 無制限（旧設定ファイルには無いので default で補う）。
+    #[serde(default)]
+    pub sets: u32,
 }
 
 fn default_hud_opacity() -> f32 {
@@ -34,6 +37,7 @@ impl Default for AppConfig {
             muted: false,
             autostart: false,
             hud_opacity: default_hud_opacity(),
+            sets: 0,
         }
     }
 }
@@ -46,6 +50,7 @@ impl AppConfig {
         self.volume = self.volume.clamp(0.0, 1.0);
         // 0 だとバーが行方不明になるため下限 0.1。
         self.hud_opacity = self.hud_opacity.clamp(0.1, 1.0);
+        self.sets = self.sets.min(99);
         self
     }
 }

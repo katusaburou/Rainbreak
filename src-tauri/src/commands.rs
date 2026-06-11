@@ -76,7 +76,7 @@ pub fn update_config(app: AppHandle, cfg: AppConfig) {
             .timer
             .lock()
             .unwrap()
-            .update_config(CycleConfig::from_minutes(cfg.work_min, cfg.break_min));
+            .update_config(CycleConfig::from_minutes(cfg.work_min, cfg.break_min).with_sets(cfg.sets));
         *state.config.lock().unwrap() = cfg.clone();
     }
     apply_autostart(&app, cfg.autostart);

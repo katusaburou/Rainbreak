@@ -45,10 +45,10 @@ fn main() {
                     // 仕事はすべて async ランタイムへ逃がし、ハンドラは即返す。
                     let app = app.clone();
                     tauri::async_runtime::spawn(async move {
-                        // 作業中は Esc を奪わない（shortcuts::sync が解除しているが二重防御）。
+                        // 作業中・セット終了中は Esc を奪わない（shortcuts::sync が解除しているが二重防御）。
                         let state = app.state::<AppState>();
                         let phase = { state.timer.lock().unwrap().phase() };
-                        if phase != Phase::Work {
+                        if !matches!(phase, Phase::Work | Phase::Finished) {
                             commands::do_skip(&app);
                         }
                     });
@@ -81,7 +81,8 @@ fn main() {
         .setup(|app| {
             let handle = app.handle();
             let cfg = config::load(handle);
-            let timer = Timer::new(CycleConfig::from_minutes(cfg.work_min, cfg.break_min));
+            let timer =
+                Timer::new(CycleConfig::from_minutes(cfg.work_min, cfg.break_min).with_sets(cfg.sets));
             app.manage(AppState {
                 timer: Mutex::new(timer),
                 config: Mutex::new(cfg.clone()),

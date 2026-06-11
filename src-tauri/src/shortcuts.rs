@@ -15,7 +15,8 @@ fn esc() -> Shortcut {
 pub fn sync(app: &AppHandle, phase: Phase) {
     let gs = app.global_shortcut();
     let shortcut = esc();
-    if phase == Phase::Work {
+    // 作業中とセット終了中（雨は降っていない）は Esc を奪わない。
+    if matches!(phase, Phase::Work | Phase::Finished) {
         let _ = gs.unregister(shortcut);
     } else if !gs.is_registered(shortcut) {
         let _ = gs.register(shortcut);
