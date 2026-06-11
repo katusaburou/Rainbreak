@@ -14,7 +14,7 @@ pub const INCOMING_LEAD_SECS: u32 = 30;
 /// （実装計画 §4「Clearing はフェードアウト完了…タイマーで遷移」）。
 pub const CLEARING_SECS: u32 = 3;
 
-/// サイクルの 4 フェーズ。
+/// サイクルの 4 フェーズ ＋ 終端のセット終了。
 ///
 /// 文字列表現は WebView へ送るイベントのフェーズ名と一致させる（`as_str`）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -27,6 +27,9 @@ pub enum Phase {
     Shower,
     /// 雨上がり。雨・音をフェードアウトして退避し、作業へループ。
     Clearing,
+    /// セット終了。設定したセット数を消化した終端で、タイマーは停止する。
+    /// Skip で新しいセッション（セット 1）を開始する。
+    Finished,
 }
 
 impl Phase {
@@ -37,24 +40,34 @@ impl Phase {
             Phase::Incoming => "incoming",
             Phase::Shower => "shower",
             Phase::Clearing => "clearing",
+            Phase::Finished => "finished",
         }
     }
 }
 
-/// サイクル長（作業・休憩）の設定。秒で保持する。
+/// サイクル長（作業・休憩）とセット数の設定。秒で保持する。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CycleConfig {
     pub work_secs: u32,
     pub break_secs: u32,
+    /// セット数（こなす作業サイクルの回数）。`0` は無制限（従来どおりループ）。
+    pub sets: u32,
 }
 
 impl CycleConfig {
-    /// 分から生成する。0 分は不正なので最低 1 分にクランプする。
+    /// 分から生成する。0 分は不正なので最低 1 分にクランプする。セット数は無制限。
     pub fn from_minutes(work_min: u32, break_min: u32) -> Self {
         Self {
             work_secs: work_min.max(1) * 60,
             break_secs: break_min.max(1) * 60,
+            sets: 0,
         }
+    }
+
+    /// セット数を設定する（`0` = 無制限）。
+    pub fn with_sets(mut self, sets: u32) -> Self {
+        self.sets = sets;
+        self
     }
 }
 
@@ -158,18 +171,28 @@ impl Timer {
             }
             Phase::Clearing => {
                 if self.remaining == 0 {
-                    self.enter_work();
+                    self.advance_cycle();
                     true
                 } else {
                     false
                 }
             }
+            // セット終了は時間では遷移しない（Skip でのみ次のセッションへ）。
+            Phase::Finished => false,
         }
     }
 
-    /// Skip / Esc: どのフェーズからでも次の作業サイクルへ戻る（要件 §3.5）。
+    /// Skip / Esc: どのフェーズからでも次の区切りへ進む（要件 §3.5）。
+    ///
+    /// 通常は次の作業サイクルへ。設定セット数を消化していたらセット終了へ、
+    /// セット終了からは新しいセッション（セット 1）を開始する。
     pub fn skip(&mut self) -> TimerSnapshot {
-        self.enter_work();
+        if self.phase == Phase::Finished {
+            self.cycle = 0; // enter_work の加算で 1 に戻る
+            self.enter_work();
+        } else {
+            self.advance_cycle();
+        }
         self.snapshot(true)
     }
 
@@ -186,9 +209,20 @@ impl Timer {
             Phase::Work | Phase::Incoming => self.cfg.work_secs,
             Phase::Shower => self.cfg.break_secs,
             Phase::Clearing => CLEARING_SECS,
+            Phase::Finished => 0,
         };
         if self.remaining > cap {
             self.remaining = cap;
+        }
+    }
+
+    /// 次の作業サイクルへ進む。設定セット数（`sets > 0`）を消化していたら
+    /// セット終了へ入り、タイマーを止める。
+    fn advance_cycle(&mut self) {
+        if self.cfg.sets > 0 && self.cycle >= self.cfg.sets {
+            self.enter_finished();
+        } else {
+            self.enter_work();
         }
     }
 
@@ -196,6 +230,11 @@ impl Timer {
         self.phase = Phase::Work;
         self.remaining = self.cfg.work_secs;
         self.cycle += 1;
+    }
+
+    fn enter_finished(&mut self) {
+        self.phase = Phase::Finished;
+        self.remaining = 0;
     }
 
     fn enter_shower(&mut self) {
@@ -249,6 +288,7 @@ impl Timer {
             Phase::Work | Phase::Incoming => self.cfg.work_secs,
             Phase::Shower => self.cfg.break_secs,
             Phase::Clearing => CLEARING_SECS,
+            Phase::Finished => 0,
         }
     }
 
@@ -262,11 +302,17 @@ impl Timer {
 mod tests {
     use super::*;
 
-    /// テスト用に短いサイクルを作る（work 120s / break 60s）。
+    /// テスト用に短いサイクルを作る（work 120s / break 60s / セット無制限）。
     fn timer() -> Timer {
+        timer_with_sets(0)
+    }
+
+    /// セット数指定つきの短いサイクル（work 120s / break 60s）。
+    fn timer_with_sets(sets: u32) -> Timer {
         Timer::new(CycleConfig {
             work_secs: 120,
             break_secs: 60,
+            sets,
         })
     }
 
@@ -296,6 +342,8 @@ mod tests {
         let c = CycleConfig::from_minutes(0, 0);
         assert_eq!(c.work_secs, 60);
         assert_eq!(c.break_secs, 60);
+        assert_eq!(c.sets, 0); // 既定は無制限
+        assert_eq!(c.with_sets(4).sets, 4);
     }
 
     #[test]
@@ -420,6 +468,7 @@ mod tests {
         t.update_config(CycleConfig {
             work_secs: 60,
             break_secs: 30,
+            sets: 0,
         });
         assert_eq!(t.remaining_secs(), 60);
     }
@@ -434,6 +483,7 @@ mod tests {
         t.update_config(CycleConfig {
             work_secs: 1800,
             break_secs: 300,
+            sets: 0,
         });
         // 伸ばした場合は現在の残りを保持（クランプされない）。
         assert_eq!(t.remaining_secs(), before);
@@ -451,10 +501,90 @@ mod tests {
     }
 
     #[test]
+    fn finishes_after_configured_sets() {
+        let mut t = timer_with_sets(2);
+        // 1 サイクル = work(120) + break(60) + clearing(3) = 183 tick。
+        for _ in 0..183 {
+            t.tick();
+        }
+        assert_eq!(t.phase(), Phase::Work);
+        assert_eq!(t.cycle(), 2);
+        // 2 セット目の雨上がり完了で Work へ戻らずセット終了。
+        for _ in 0..182 {
+            t.tick();
+        }
+        let last = t.tick();
+        assert_eq!(last.phase, Phase::Finished);
+        assert!(last.phase_changed);
+        assert_eq!(t.cycle(), 2);
+        assert_eq!(t.remaining_secs(), 0);
+        assert_eq!(t.segment_total_secs(), 0);
+    }
+
+    #[test]
+    fn finished_is_stable_until_skip() {
+        let mut t = timer_with_sets(1);
+        for _ in 0..183 {
+            t.tick();
+        }
+        assert_eq!(t.phase(), Phase::Finished);
+        // 放置してもセット終了のまま動かない。
+        for _ in 0..100 {
+            let s = t.tick();
+            assert_eq!(s.phase, Phase::Finished);
+            assert!(!s.phase_changed);
+        }
+    }
+
+    #[test]
+    fn skip_from_finished_starts_new_session() {
+        let mut t = timer_with_sets(1);
+        for _ in 0..183 {
+            t.tick();
+        }
+        assert_eq!(t.phase(), Phase::Finished);
+        let s = t.skip();
+        assert!(s.phase_changed);
+        assert_eq!(s.phase, Phase::Work);
+        assert_eq!(s.remaining_secs, 120);
+        assert_eq!(s.cycle, 1); // セットは 1 から数え直す
+    }
+
+    #[test]
+    fn skip_during_last_break_finishes_session() {
+        let mut t = timer_with_sets(1);
+        for _ in 0..121 {
+            t.tick();
+        }
+        assert_eq!(t.phase(), Phase::Shower);
+        // 最終セットの通り雨を切り上げる → 次の作業は無いのでセット終了。
+        let s = t.skip();
+        assert_eq!(s.phase, Phase::Finished);
+    }
+
+    #[test]
+    fn reducing_sets_mid_session_finishes_at_next_boundary() {
+        let mut t = timer_with_sets(0);
+        for _ in 0..183 {
+            t.tick();
+        }
+        assert_eq!(t.cycle(), 2);
+        // 走行中にセット数を 1 へ減らす → すでに消化済みなので次の区切りで終了。
+        t.update_config(CycleConfig {
+            work_secs: 120,
+            break_secs: 60,
+            sets: 1,
+        });
+        let s = t.skip();
+        assert_eq!(s.phase, Phase::Finished);
+    }
+
+    #[test]
     fn phase_as_str_matches_event_names() {
         assert_eq!(Phase::Work.as_str(), "work");
         assert_eq!(Phase::Incoming.as_str(), "incoming");
         assert_eq!(Phase::Shower.as_str(), "shower");
         assert_eq!(Phase::Clearing.as_str(), "clearing");
+        assert_eq!(Phase::Finished.as_str(), "finished");
     }
 }

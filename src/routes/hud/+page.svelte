@@ -44,8 +44,9 @@
 		}
 	}
 
-	// Work / Incoming のみ表示（Shower は非表示、Clearing 完了で再表示）。
-	const visible = $derived(phase === 'work' || phase === 'incoming');
+	// Work / Incoming / Finished で表示（Shower は非表示、Clearing 完了で再表示）。
+	// セット終了は満了のバーを残し、「やり切った」状態を静かに示す。
+	const visible = $derived(phase === 'work' || phase === 'incoming' || phase === 'finished');
 	// 終盤の goal-gradient（わずかに暖色へ寄せる控えめな演出）。
 	const nearGoal = $derived(fill > 0.85);
 
@@ -60,6 +61,8 @@
 				phase = t.phase;
 				if (t.segment_total_secs > 0 && (t.phase === 'work' || t.phase === 'incoming')) {
 					fill = 1 - t.remaining_secs / t.segment_total_secs;
+				} else if (t.phase === 'finished') {
+					fill = 1;
 				}
 			})
 		);

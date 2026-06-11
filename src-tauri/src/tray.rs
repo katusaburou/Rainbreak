@@ -42,7 +42,12 @@ pub fn build(app: &AppHandle) -> tauri::Result<()> {
 /// トレイのツールチップにフェーズと残り時間を反映する。
 pub fn update(app: &AppHandle, phase: Phase, remaining: u32) {
     if let Some(tray) = app.tray_by_id("main") {
-        let text = format!("雨やどり — {} {}", glue::phase_label(phase), glue::fmt_mmss(remaining));
+        // セット終了はタイマーが止まっているので残り時間を出さない。
+        let text = if phase == Phase::Finished {
+            format!("雨やどり — {}", glue::phase_label(phase))
+        } else {
+            format!("雨やどり — {} {}", glue::phase_label(phase), glue::fmt_mmss(remaining))
+        };
         let _ = tray.set_tooltip(Some(text));
     }
 }

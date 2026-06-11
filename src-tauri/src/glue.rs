@@ -68,6 +68,7 @@ pub fn phase_label(phase: Phase) -> &'static str {
         Phase::Incoming => "まもなく通り雨",
         Phase::Shower => "通り雨（休憩）",
         Phase::Clearing => "雨上がり",
+        Phase::Finished => "セット終了",
     }
 }
 

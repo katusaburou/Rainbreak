@@ -8,7 +8,8 @@
 		volume: 0.6,
 		muted: false,
 		autostart: false,
-		hud_opacity: 1
+		hud_opacity: 1,
+		sets: 0
 	});
 	let loaded = $state(false);
 	let saving = $state(false);
@@ -30,6 +31,7 @@
 				...cfg,
 				work_min: clampInt(cfg.work_min, 1, 180),
 				break_min: clampInt(cfg.break_min, 1, 60),
+				sets: clampInt(cfg.sets, 0, 99),
 				volume: Math.min(1, Math.max(0, cfg.volume)),
 				hud_opacity: Math.min(1, Math.max(0.1, cfg.hud_opacity))
 			});
@@ -61,6 +63,11 @@
 				休憩時間（分）
 				<input type="number" min="1" max="60" bind:value={cfg.break_min} />
 			</label>
+			<label>
+				セット数（0 = 無制限）
+				<input type="number" min="0" max="99" bind:value={cfg.sets} />
+			</label>
+			<p class="hint">設定した回数の作業を終えると、雨上がりのあとにタイマーが停止します。</p>
 		</section>
 
 		<section>
@@ -182,11 +189,15 @@
 		font-size: 0.85rem;
 	}
 	.muted,
-	.note {
+	.note,
+	.hint {
 		color: #7c8aa0;
 		font-size: 0.8rem;
 	}
 	.note {
 		margin-top: 1.5rem;
+	}
+	.hint {
+		margin: 0;
 	}
 </style>

@@ -87,6 +87,8 @@
 		stopClearingTween();
 		switch (next) {
 			case 'work':
+			// セット終了は今のところ作業と同じ退避のみ（終了演出はここに差し込む）。
+			case 'finished':
 				stopCaptureLoop();
 				rain.setIntensity(0);
 				rain.stop();
@@ -177,7 +179,13 @@
 		// ?phase=shower などのクエリでフェーズを手動再現できるようにする。
 		if (dev && !('__TAURI_INTERNALS__' in window)) {
 			const p = new URLSearchParams(location.search).get('phase');
-			if (p === 'work' || p === 'incoming' || p === 'shower' || p === 'clearing') {
+			if (
+				p === 'work' ||
+				p === 'incoming' ||
+				p === 'shower' ||
+				p === 'clearing' ||
+				p === 'finished'
+			) {
 				applyPhase(p);
 			}
 		}

@@ -103,8 +103,8 @@ pub fn apply_phase(app: &AppHandle, phase: Phase) {
     let hud = app.get_webview_window("hud");
 
     match phase {
-        // 作業: overlay 退避、HUD のみ表示。他アプリ操作を一切妨げない。
-        Phase::Work => {
+        // 作業・セット終了: overlay 退避、HUD のみ表示。他アプリ操作を一切妨げない。
+        Phase::Work | Phase::Finished => {
             if let Some(o) = &overlay {
                 let _ = o.set_always_on_top(false);
                 let _ = o.hide();
