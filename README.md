@@ -323,8 +323,8 @@ Rainbreak/
 ## 配布 / リリース
 
 - **GitHub Releases ＋ `tauri-apps/tauri-action`**。macOS(Arm/Intel)・Windows のインストーラをビルド → Release（ドラフト）作成＆アップロードまで自動化。起動方法は2通り:
-  - **タグ push**: `git tag v0.1.0 && git push origin v0.1.0`（`v*` で発火）。
-  - **手動実行**: GitHub の **Actions → release → Run workflow** で `version`（例 `v0.1.0`）を入力。タグを push できない環境向け。実行したコミットに同名タグを作成する。
+  - **タグ push**: `git tag v1.0.0 && git push origin v1.0.0`（`v*` で発火。タグ名は `src-tauri/tauri.conf.json` などのアプリバージョンと一致させる）。
+  - **手動実行**: GitHub の **Actions → release → Run workflow** で `version`（例 `v1.0.0`）を入力。タグを push できない環境向け。実行したコミットに同名タグを作成する。
   - いずれもドラフトのリリースが作られるため、内容を確認して **Publish** すると一般公開される。
 - 生成物: macOS `.dmg`（Apple Silicon / Intel）、Windows `Setup.exe`（NSIS）。ビルド後の `rename-assets` ジョブが `tools/rename-release-assets.mjs` で OS の分かるアセット名（`..._Windows_Setup.exe` / `..._macOS_AppleSilicon.dmg` など）へ揃え、`latest.json` 内の URL も追随させる。
 - **未署名で配布**し、本 README とリリースノートに手順を明記。
@@ -337,7 +337,7 @@ Rainbreak/
 - **配信に必要な一度きりの準備**: リポジトリ **Settings → Secrets and variables → Actions** に、`tauri signer generate` で生成した秘密鍵を **`TAURI_SIGNING_PRIVATE_KEY`** として登録する（公開鍵は `src-tauri/tauri.conf.json` に埋め込み済み）。**秘密鍵を紛失すると以後の更新を配信できない**ため必ず保管する。
 - 配信開始のタイミング: ドラフト Release を **Publish した時点**で `releases/latest/download/latest.json` が解決可能になり、各クライアントに行き渡る。
 - 各リリース前に `src-tauri/tauri.conf.json`・`src-tauri/Cargo.toml`・`package.json` のバージョンを上げてからタグを切る。
-- 注意: 自動更新が効くのは updater 入りの版をインストールした利用者から。それ以前の版（素の v0.1.0 以前）には届かないため、手動での入れ直しを案内する。
+- 注意: 自動更新が効くのは updater 入りの版（初回公開の v1.0.0 以降）をインストールした利用者から。updater を持たない版には届かないため、その場合は手動での入れ直しを案内する。
 
 ### 将来のコード署名（任意・段階的）
 - **macOS**: Apple Developer Program（年99ドル）→ Developer ID 署名＋notarization で Gatekeeper 警告を解消。
