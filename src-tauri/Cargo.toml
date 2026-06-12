@@ -29,6 +29,16 @@ xcap = "0.9.6"
 image = { version = "0.25.6", default-features = false, features = ["jpeg"] }
 base64 = "0.22.1"
 
+# macOS: 全画面 Space 共存（collectionBehavior）とキャプチャ除外（sharingType）。
+# tao が露出しない NSWindow 属性を直接設定する（macos.rs / 要件 §11 Gate 1）。
+# バージョンは tao/wry が使うものと同一系列（Cargo.lock 上で 1 本に揃う）。
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2-app-kit = { version = "0.3", default-features = false, features = [
+    "std",
+    "NSResponder",
+    "NSWindow",
+] }
+
 [features]
 # 既定。Tauri テンプレート互換のためのプレースホルダ。
 custom-protocol = ["tauri/custom-protocol"]

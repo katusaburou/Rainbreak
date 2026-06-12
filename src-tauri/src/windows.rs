@@ -33,6 +33,9 @@ pub fn init(app: &AppHandle) {
         // 代わりに set_focusable(false) でクリック時もフォーカスを奪わず、
         // 作業中のタイピングを中断させない。
         let _ = hud.set_focusable(false);
+        // 全 Space ＋ ネイティブ全画面 Space の上に出られるようにする（Gate 1）。
+        #[cfg(target_os = "macos")]
+        crate::macos::init_window(&hud);
         exclude_from_capture(&hud);
         if let Some((w, h)) = saved.hud_size {
             let _ = hud.set_size(PhysicalSize::new(w, h));
@@ -42,6 +45,16 @@ pub fn init(app: &AppHandle) {
     }
     if let Some(overlay) = app.get_webview_window("overlay") {
         let _ = overlay.set_always_on_top(false);
+        #[cfg(target_os = "macos")]
+        {
+            crate::macos::init_window(&overlay);
+            // tao の show() は makeKeyAndOrderFront でキーフォーカスを奪う。
+            // 予兆の「作業は継続できる」を守るため canBecomeKeyWindow を切り、
+            // フォーカスを奪わず前面表示だけさせる（クリックは非キーでも
+            // WebView に届くので通り雨の Skip は機能する。Esc はグローバル
+            // ショートカット側が担う。要件 §10 の「フォーカスは奪わない」方向）。
+            let _ = overlay.set_focusable(false);
+        }
         exclude_from_capture(&overlay);
         let _ = overlay.hide();
     }
@@ -78,7 +91,6 @@ fn schedule_ui_save(app: &AppHandle) {
 /// capture_screen（モードB の屈折元キャプチャ）に雨や HUD 自身が写り込んで
 /// 多重露光にならないようにする。副作用として画面共有・録画にも写らなくなるが、
 /// 共有相手に通り雨を見せない挙動はこのアプリでは望ましい側。
-/// macOS は NSWindow.sharingType の設定が要る（Phase 0 ゲートと同様に別途検証）。
 #[cfg(windows)]
 fn exclude_from_capture(win: &WebviewWindow) {
     const WDA_EXCLUDEFROMCAPTURE: u32 = 0x0000_0011;
@@ -94,7 +106,13 @@ fn exclude_from_capture(win: &WebviewWindow) {
     }
 }
 
-#[cfg(not(windows))]
+/// macOS 版: NSWindow.sharingType で同じ除外を行う（macos.rs）。
+#[cfg(target_os = "macos")]
+fn exclude_from_capture(win: &WebviewWindow) {
+    crate::macos::exclude_from_capture(win);
+}
+
+#[cfg(not(any(windows, target_os = "macos")))]
 fn exclude_from_capture(_win: &WebviewWindow) {}
 
 /// フェーズに応じて 2 窓の属性を切り替える。
@@ -120,9 +138,9 @@ pub fn apply_phase(app: &AppHandle, snap: &TimerSnapshot) {
                 let _ = o.set_always_on_top(true);
                 cover_primary_monitor(o);
                 let _ = o.show();
-                // macOS のネイティブ全画面アプリ上への重ね合わせ（Gate 1）は
-                // collectionBehavior / window level の設定が要る。Phase 0 の検証
-                // 結果に従ってネイティブ実装を追加する（要件 §11 / 実装計画 §2）。
+                // macOS のネイティブ全画面アプリ上への重ね合わせ（Gate 1）は、
+                // init で設定済みの collectionBehavior（macos.rs）が担う。
+                // show は全 Space 共有の窓を前面に出すだけで Space を切り替えない。
             }
             if let Some(h) = &hud {
                 let _ = h.show();
@@ -151,8 +169,22 @@ pub fn apply_phase(app: &AppHandle, snap: &TimerSnapshot) {
     }
 }
 
-/// overlay を主モニタ全体に広げる（装飾なし maximize を第一候補。実装計画 §5）。
+/// overlay を主モニタ全体に広げる。
+///
+/// macOS: 装飾なし窓の maximize() は visibleFrame（メニューバー・Dock を除く）
+/// までしか広がらず、雨に隙間が出る。モニタ全域へ明示的にフレームを張る
+/// （メニューバー・Dock は overlay より上の level に描画されるため、
+/// クリックも見た目もそれらが優先され、逃げ場は塞がない）。
+/// Windows: 従来どおり maximize（実装計画 §5 の第一候補）。
 fn cover_primary_monitor(win: &WebviewWindow) {
+    #[cfg(target_os = "macos")]
+    {
+        if let Ok(Some(monitor)) = win.primary_monitor() {
+            let _ = win.set_position(*monitor.position());
+            let _ = win.set_size(*monitor.size());
+            return;
+        }
+    }
     let _ = win.maximize();
 }
 
