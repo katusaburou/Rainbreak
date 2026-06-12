@@ -121,14 +121,27 @@ pub fn apply_phase(app: &AppHandle, snap: &TimerSnapshot) {
     let hud = app.get_webview_window("hud");
 
     match snap.phase {
-        // 作業・セット終了: overlay 退避、HUD のみ表示。他アプリ操作を一切妨げない。
-        Phase::Work | Phase::Finished => {
+        // 作業: overlay 退避、HUD のみ表示。他アプリ操作を一切妨げない。
+        Phase::Work => {
             if let Some(o) = &overlay {
                 let _ = o.set_always_on_top(false);
                 let _ = o.hide();
             }
             if let Some(h) = &hud {
                 let _ = h.show();
+            }
+        }
+        // セット終了: 全画面の終了画面を出し、「もう一度／終了」を選ばせる。
+        // クリックを受ける（クリックスルー OFF）。HUD は退避。
+        Phase::Finished => {
+            if let Some(o) = &overlay {
+                let _ = o.set_ignore_cursor_events(false);
+                let _ = o.set_always_on_top(true);
+                cover_primary_monitor(o);
+                let _ = o.show();
+            }
+            if let Some(h) = &hud {
+                let _ = h.hide();
             }
         }
         // 予兆: 全画面・透過・最前面・クリックスルー ON（作業継続可）。HUD 表示継続。
@@ -156,16 +169,9 @@ pub fn apply_phase(app: &AppHandle, snap: &TimerSnapshot) {
                 let _ = h.hide();
             }
         }
-        // 雨上がり: フェードはフロントが演出。退避は Work / セット終了遷移で行う。
-        // 最終セットの雨上がりは虹の余韻ぶん長いので、クリックスルーにして
-        // 雨が引いた時点から背後の作業へ戻れるようにする（虹は眺めるだけ）。
-        Phase::Clearing => {
-            if snap.last_set {
-                if let Some(o) = &overlay {
-                    let _ = o.set_ignore_cursor_events(true);
-                }
-            }
-        }
+        // 雨上がり: フェードはフロントが演出。退避は Work 遷移で行う。
+        // 雨上がりは常にセット途中（最終セットは休憩を挟まずセット終了へ）。
+        Phase::Clearing => {}
     }
 }
 

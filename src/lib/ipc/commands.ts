@@ -5,6 +5,9 @@ import type { AppConfig } from './types';
 /** 通り雨／予兆を切り上げて作業へ戻る。 */
 export const skipBreak = (): Promise<void> => invoke('skip_break');
 
+/** セット終了画面の「もう一度」: セッションをセット 1 の作業からやり直す。 */
+export const restartSession = (): Promise<void> => invoke('restart_session');
+
 /** タイマー一時停止。 */
 export const pauseTimer = (): Promise<void> => invoke('pause');
 

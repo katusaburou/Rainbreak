@@ -14,9 +14,9 @@ pub const INCOMING_LEAD_SECS: u32 = 30;
 /// （実装計画 §4「Clearing はフェードアウト完了…タイマーで遷移」）。
 pub const CLEARING_SECS: u32 = 3;
 
-/// 最終セットの雨上がりの長さ（秒）。通常より長く取り、雨が引いたあとの
-/// 虹と余韻（雫・鳥の声）の時間を確保する。フロントの虹タイムラインは
-/// この値に同期する。
+/// セット終了画面に架かる虹の演出の長さ（秒）。最終セットの作業が終わった
+/// あと、フロントのセット終了画面が虹と余韻（雫・鳥の声）を出す尺で、フロント
+/// の虹タイムラインはこの値に同期する。タイマー駆動ではない（セット終了は停止）。
 pub const FINAL_CLEARING_SECS: u32 = 10;
 
 /// サイクルの 4 フェーズ ＋ 終端のセット終了。
@@ -32,8 +32,9 @@ pub enum Phase {
     Shower,
     /// 雨上がり。雨・音をフェードアウトして退避し、作業へループ。
     Clearing,
-    /// セット終了。設定したセット数を消化した終端で、タイマーは停止する。
-    /// Skip で新しいセッション（セット 1）を開始する。
+    /// セット終了。設定したセット数の作業を終えた終端で、タイマーは停止する。
+    /// フロントは「もう一度／終了」の選択肢を出す。`restart`（または Skip）で
+    /// 新しいセッション（セット 1）を開始する。
     Finished,
 }
 
@@ -150,11 +151,12 @@ impl Timer {
         match self.phase {
             Phase::Work => {
                 if self.remaining == 0 {
-                    // work_secs が極端に短い場合の保険。通常は Incoming を経由する。
-                    self.enter_shower();
+                    // 作業の完了。最終セットならセット終了、ほかは休憩へ。
+                    self.end_of_work();
                     true
-                } else if self.remaining <= INCOMING_LEAD_SECS {
+                } else if self.remaining <= INCOMING_LEAD_SECS && !self.is_last_set() {
                     // 作業タイマーは継続したまま見た目だけ予兆へ。
+                    // 最終セットは休憩が無いため予兆を出さない（作業のまま終了へ）。
                     self.phase = Phase::Incoming;
                     true
                 } else {
@@ -163,7 +165,7 @@ impl Timer {
             }
             Phase::Incoming => {
                 if self.remaining == 0 {
-                    self.enter_shower();
+                    self.end_of_work();
                     true
                 } else {
                     false
@@ -179,33 +181,43 @@ impl Timer {
             }
             Phase::Clearing => {
                 if self.remaining == 0 {
-                    self.advance_cycle();
+                    // 休憩を終えて次の作業サイクルへ（セット消化は作業の完了時に判定）。
+                    self.enter_work();
                     true
                 } else {
                     false
                 }
             }
-            // セット終了は時間では遷移しない（Skip でのみ次のセッションへ）。
+            // セット終了は時間では遷移しない（restart / Skip でのみ次のセッションへ）。
             Phase::Finished => false,
         }
     }
 
     /// Skip / Esc: 現在の区切りを先へ送る（要件 §3.5）。
     ///
-    /// 予兆からは「雨の先送り」として常に新しい作業サイクルへ戻す（予兆は
-    /// 作業時間の一部であり、「Esc（予兆を中止）→作業へ」を最終セットでも保つ。
-    /// セット終了はその先送りしたサイクルの雨上がりまで延びる）。
-    /// それ以外は次の作業サイクルへ進み、設定セット数を消化していたら
-    /// セット終了へ。セット終了からは新しいセッション（セット 1）を開始する。
+    /// - 予兆 / 通り雨 / 雨上がり / 作業: 休憩を飛ばして次の作業サイクルへ。
+    ///   ただし最終セットの作業を Skip した場合は、次の作業が無いのでセット終了へ。
+    /// - セット終了: 新しいセッション（セット 1）を始める。
     pub fn skip(&mut self) -> TimerSnapshot {
         match self.phase {
-            Phase::Incoming => self.enter_work(),
+            // 最終セットの作業を切り上げると、次の作業は無いのでセット終了。
+            Phase::Work if self.is_last_set() => self.enter_finished(),
             Phase::Finished => {
                 self.cycle = 0; // enter_work の加算で 1 に戻る
                 self.enter_work();
             }
-            _ => self.advance_cycle(),
+            _ => self.enter_work(),
         }
+        self.snapshot(true)
+    }
+
+    /// セッションを最初（セット 1 の作業）からやり直す。セット終了画面の
+    /// 「もう一度」で使う。どのフェーズからでも作業の頭へ戻す。
+    pub fn restart(&mut self) -> TimerSnapshot {
+        self.phase = Phase::Work;
+        self.remaining = self.cfg.work_secs;
+        self.cycle = 1;
+        self.paused = false;
         self.snapshot(true)
     }
 
@@ -229,27 +241,26 @@ impl Timer {
         }
     }
 
-    /// いま最終セットを消化中（このサイクルの雨上がりでセット終了する）か。
+    /// いま最終セットの作業中（この作業の完了でセット終了する）か。
+    /// `sets = 0`（無制限）では常に false。
     fn is_last_set(&self) -> bool {
         self.cfg.sets > 0 && self.cycle >= self.cfg.sets
     }
 
-    /// 雨上がりの長さ。最終セットは虹の余韻ぶん長い。
+    /// 雨上がりの長さ。セット途中の休憩のあとにだけ起き、一定（虹の余韻は
+    /// セット終了画面側が担う）。
     fn clearing_total(&self) -> u32 {
-        if self.is_last_set() {
-            FINAL_CLEARING_SECS
-        } else {
-            CLEARING_SECS
-        }
+        CLEARING_SECS
     }
 
-    /// 次の作業サイクルへ進む。設定セット数（`sets > 0`）を消化していたら
-    /// セット終了へ入り、タイマーを止める。
-    fn advance_cycle(&mut self) {
+    /// 作業セッションの終わり。セット消化はこの「作業の完了」時点で判定する。
+    /// 最終セット（設定セット数に到達）ならセット終了へ入りタイマーを止め、
+    /// そうでなければ休憩（通り雨）へ進む。
+    fn end_of_work(&mut self) {
         if self.is_last_set() {
             self.enter_finished();
         } else {
-            self.enter_work();
+            self.enter_shower();
         }
     }
 
@@ -528,23 +539,22 @@ mod tests {
         assert_eq!(t.cycle(), 6);
     }
 
-    /// 最終セットの 1 サイクル = work(120) + break(60) + 虹の雨上がり(10) = 190 tick。
-    const LAST_SET_TICKS: usize = 190;
-
     #[test]
     fn finishes_after_configured_sets() {
         let mut t = timer_with_sets(2);
-        // 1 セット目（最終ではない）= work(120) + break(60) + clearing(3) = 183 tick。
+        // 1 セット目（最終でない）= work(120)+break(60)+clearing(3) = 183 tick で
+        // 2 セット目の作業へ。
         for _ in 0..183 {
             t.tick();
         }
         assert_eq!(t.phase(), Phase::Work);
         assert_eq!(t.cycle(), 2);
-        // 2 セット目は雨上がりが虹つき（10秒）で、完了すると Work へ戻らずセット終了。
-        for _ in 0..LAST_SET_TICKS - 1 {
-            t.tick();
+        // 2 セット目（最終）は予兆も休憩も無く、作業の完了でセット終了。
+        for _ in 0..119 {
+            let s = t.tick();
+            assert_eq!(s.phase, Phase::Work);
         }
-        let last = t.tick();
+        let last = t.tick(); // 作業 120 tick 目で満了。
         assert_eq!(last.phase, Phase::Finished);
         assert!(last.phase_changed);
         assert_eq!(t.cycle(), 2);
@@ -553,9 +563,30 @@ mod tests {
     }
 
     #[test]
+    fn last_set_has_no_incoming_and_finishes_at_work_end() {
+        // セット数 1: 最初から最終セット。予兆に一切入らず、作業満了で終了。
+        let mut t = timer_with_sets(1);
+        let changes = collect_changes(&mut t, 120);
+        let phases: Vec<Phase> = changes.iter().map(|(_, s)| s.phase).collect();
+        assert_eq!(phases, vec![Phase::Finished]);
+        assert_eq!(changes[0].0, 120); // 作業満了の tick でのみ遷移
+        assert_eq!(t.cycle(), 1);
+    }
+
+    #[test]
+    fn last_set_flag_tracks_final_set() {
+        // セット数 1 は最初から最終セット。
+        assert!(timer_with_sets(1).current().last_set);
+        // セット数 2 の 1 セット目は最終でない。
+        assert!(!timer_with_sets(2).current().last_set);
+        // 無制限は常に最終でない。
+        assert!(!timer().current().last_set);
+    }
+
+    #[test]
     fn finished_is_stable_until_skip() {
         let mut t = timer_with_sets(1);
-        for _ in 0..LAST_SET_TICKS {
+        for _ in 0..120 {
             t.tick();
         }
         assert_eq!(t.phase(), Phase::Finished);
@@ -570,7 +601,7 @@ mod tests {
     #[test]
     fn skip_from_finished_starts_new_session() {
         let mut t = timer_with_sets(1);
-        for _ in 0..LAST_SET_TICKS {
+        for _ in 0..120 {
             t.tick();
         }
         assert_eq!(t.phase(), Phase::Finished);
@@ -582,93 +613,70 @@ mod tests {
     }
 
     #[test]
-    fn skip_from_incoming_on_last_set_defers_rain_not_finish() {
-        let mut t = timer_with_sets(1);
-        for _ in 0..90 {
+    fn restart_resets_to_first_work() {
+        let mut t = timer_with_sets(2);
+        for _ in 0..183 {
             t.tick();
         }
-        assert_eq!(t.phase(), Phase::Incoming);
-        // 予兆の中止は最終セットでも「雨の先送り」: セット終了にせず作業へ戻す。
-        let s = t.skip();
+        assert_eq!(t.cycle(), 2);
+        // セット終了画面の「もう一度」: どこからでもセット 1 の作業へ。
+        let s = t.restart();
+        assert!(s.phase_changed);
         assert_eq!(s.phase, Phase::Work);
         assert_eq!(s.remaining_secs, 120);
-        // 先送りしたサイクルを終えると、改めて虹つきの雨上がり→セット終了。
-        for _ in 0..180 {
-            t.tick();
-        }
-        assert_eq!(t.phase(), Phase::Clearing);
-        assert_eq!(t.remaining_secs(), FINAL_CLEARING_SECS);
-        for _ in 0..FINAL_CLEARING_SECS as usize {
-            t.tick();
-        }
-        assert_eq!(t.phase(), Phase::Finished);
+        assert_eq!(s.cycle, 1);
     }
 
     #[test]
-    fn skip_during_last_break_finishes_session() {
+    fn skip_from_last_work_finishes() {
+        // 最終セットの作業 Skip → 次の作業が無いのでセット終了。
         let mut t = timer_with_sets(1);
-        for _ in 0..121 {
-            t.tick();
-        }
-        assert_eq!(t.phase(), Phase::Shower);
-        // 最終セットの通り雨を切り上げる → 次の作業は無いのでセット終了。
         let s = t.skip();
         assert_eq!(s.phase, Phase::Finished);
     }
 
     #[test]
-    fn final_clearing_is_extended_and_flagged() {
-        // セット途中の雨上がりは通常の 3 秒で、last_set は立たない。
+    fn skip_from_non_last_work_advances_to_next_work() {
+        // 非最終セットの作業 Skip → 休憩を飛ばして次の作業サイクルへ。
+        let mut t = timer_with_sets(2);
+        let s = t.skip();
+        assert_eq!(s.phase, Phase::Work);
+        assert_eq!(s.remaining_secs, 120);
+        assert_eq!(t.cycle(), 2);
+    }
+
+    #[test]
+    fn mid_session_clearing_is_short_and_not_flagged() {
+        // セット途中の雨上がりは常に 3 秒で、last_set は立たない。
         let mut t = timer_with_sets(2);
         for _ in 0..180 {
             t.tick();
         }
         assert_eq!(t.phase(), Phase::Clearing);
         assert_eq!(t.remaining_secs(), CLEARING_SECS);
+        assert_eq!(t.segment_total_secs(), CLEARING_SECS);
         assert!(!t.current().last_set);
-
-        // 最終セットの雨上がりは虹の余韻ぶん長く、last_set が立つ。
-        let mut t = timer_with_sets(1);
-        for _ in 0..180 {
-            t.tick();
-        }
-        assert_eq!(t.phase(), Phase::Clearing);
-        assert_eq!(t.remaining_secs(), FINAL_CLEARING_SECS);
-        assert_eq!(t.segment_total_secs(), FINAL_CLEARING_SECS);
-        assert!(t.current().last_set);
     }
 
     #[test]
-    fn config_update_mid_final_clearing_keeps_rainbow_time() {
-        let mut t = timer_with_sets(1);
-        for _ in 0..182 {
-            t.tick();
-        }
-        assert_eq!(t.phase(), Phase::Clearing);
-        assert_eq!(t.remaining_secs(), FINAL_CLEARING_SECS - 2);
-        // 虹の最中に設定保存（音量変更など）が走っても残り時間が切り詰められない。
-        t.update_config(CycleConfig {
-            work_secs: 120,
-            break_secs: 60,
-            sets: 1,
-        });
-        assert_eq!(t.remaining_secs(), FINAL_CLEARING_SECS - 2);
-    }
-
-    #[test]
-    fn reducing_sets_mid_session_finishes_at_next_boundary() {
+    fn reducing_sets_mid_session_finishes_at_next_work_end() {
         let mut t = timer_with_sets(0);
         for _ in 0..183 {
             t.tick();
         }
         assert_eq!(t.cycle(), 2);
-        // 走行中にセット数を 1 へ減らす → すでに消化済みなので次の区切りで終了。
+        // 走行中にセット数を 1 へ減らす → すでに消化済み（cycle 2 ≥ 1）なので
+        // この作業の完了でセット終了する（予兆にも入らない）。
         t.update_config(CycleConfig {
             work_secs: 120,
             break_secs: 60,
             sets: 1,
         });
-        let s = t.skip();
+        for _ in 0..119 {
+            let s = t.tick();
+            assert_eq!(s.phase, Phase::Work);
+        }
+        let s = t.tick();
         assert_eq!(s.phase, Phase::Finished);
     }
 

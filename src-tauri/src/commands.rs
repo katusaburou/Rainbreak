@@ -27,6 +27,16 @@ pub fn do_skip(app: &AppHandle) {
     glue::broadcast(app, &snap, seg);
 }
 
+/// セッションをやり直す（セット終了画面の「もう一度」／トレイから共用）。
+pub fn do_restart(app: &AppHandle) {
+    let state = app.state::<AppState>();
+    let (snap, seg) = {
+        let mut timer = state.timer.lock().unwrap();
+        (timer.restart(), timer.segment_total_secs())
+    };
+    glue::broadcast(app, &snap, seg);
+}
+
 /// 一時停止 / 再開のトグル（トレイから）。
 pub fn toggle_pause(app: &AppHandle) {
     {
@@ -41,6 +51,12 @@ pub fn toggle_pause(app: &AppHandle) {
 #[tauri::command]
 pub fn skip_break(app: AppHandle) {
     do_skip(&app);
+}
+
+/// セット終了画面の「もう一度」: セッションをセット 1 の作業からやり直す。
+#[tauri::command]
+pub fn restart_session(app: AppHandle) {
+    do_restart(&app);
 }
 
 #[tauri::command]

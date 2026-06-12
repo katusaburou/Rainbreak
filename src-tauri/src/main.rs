@@ -59,6 +59,7 @@ fn main() {
         )
         .invoke_handler(tauri::generate_handler![
             commands::skip_break,
+            commands::restart_session,
             commands::pause,
             commands::resume,
             commands::get_config,

@@ -11,6 +11,8 @@
 		onTick,
 		getConfig,
 		skipBreak,
+		restartSession,
+		quitApp,
 		captureScreen,
 		type Phase
 	} from '$lib/ipc';
@@ -20,6 +22,8 @@
 	let phase = $state<Phase>('work');
 	// 通り雨中だけ表示する休憩の残り時間（秒）。tick で毎秒更新する。
 	let remainingSecs = $state(0);
+	// セット終了画面に出す「やり切ったセット数」（= 最終セットの通し番号）。
+	let finishedSets = $state(0);
 	// 雨が描けない劣化モード（WebGL2 なし / reduced-motion / 初期化失敗）。
 	// canvas に CSS の静的ベールを出して「通り雨中」を可視化する。
 	let degraded = $state(false);
@@ -87,21 +91,29 @@
 		}
 	}
 
-	function applyPhase(next: Phase, lastSet = false) {
+	function applyPhase(next: Phase) {
 		phase = next;
 		if (!rain) return;
 		stopClearingTween();
-		// 虹と余韻は雨上がり（最終セット）限定。他フェーズへ移ったら引っ込める。
+		// 虹と余韻はセット終了画面限定。他フェーズへ移ったら引っ込める。
 		rainbow = false;
 		audio?.cancelAfterglow();
 		switch (next) {
 			case 'work':
-			// セット終了は今のところ作業と同じ退避のみ（終了演出はここに差し込む）。
-			case 'finished':
 				stopCaptureLoop();
 				rain.setIntensity(0);
 				rain.stop();
 				audio?.fadeOut(1.5);
+				break;
+			case 'finished':
+				// セット終了画面: 雨は止め、雨上がりの虹を架けて余韻を鳴らす。
+				// overlay は Rust 側（windows.rs）が全画面・クリック可で表示する。
+				stopCaptureLoop();
+				rain.setIntensity(0);
+				rain.stop();
+				audio?.fadeOut(1.5);
+				rainbow = true;
+				audio?.playAfterglow(CLEARING_SECS);
 				break;
 			case 'incoming':
 				// 強さは incoming-progress で 0→1 に動かす。
@@ -143,12 +155,8 @@
 						rain?.stop();
 					}
 				}, 1000 / 30);
-				// 最終セットの雨上がり（FINAL_CLEARING_SECS）: 雨が引いたあとに
-				// 虹を架け（案1）、雫と遠くの鳥の余韻を鳴らす（案3）。
-				if (lastSet) {
-					rainbow = true;
-					audio?.playAfterglow(CLEARING_SECS);
-				}
+				// 雨上がりは常にセット途中（最終セットは休憩を挟まずセット終了へ）。
+				// 虹と余韻はセット終了画面（finished）が担う。
 				break;
 			}
 		}
@@ -185,7 +193,13 @@
 		}
 
 		try {
-			unlisten.push(await onPhaseChanged((p) => applyPhase(p.phase, p.last_set)));
+			unlisten.push(
+				await onPhaseChanged((p) => {
+					// セット終了画面の「X セット完了」に使う通し番号を控える。
+					if (p.phase === 'finished') finishedSets = p.cycle;
+					applyPhase(p.phase);
+				})
+			);
 			unlisten.push(
 				await onIncomingProgress((p) => {
 					if (phase === 'incoming') rain?.setIntensity(p.p);
@@ -210,7 +224,7 @@
 
 		// [dev プレビュー] Tauri 外では phase イベントが来ないため、
 		// ?phase=shower などのクエリでフェーズを手動再現できるようにする。
-		// ?phase=clearing&last=1 で最終セットの虹・余韻も確認できる。
+		// ?phase=finished&sets=4 でセット終了画面（虹・選択肢）も確認できる。
 		if (dev && !('__TAURI_INTERNALS__' in window)) {
 			const params = new URLSearchParams(location.search);
 			const p = params.get('phase');
@@ -221,9 +235,10 @@
 				p === 'clearing' ||
 				p === 'finished'
 			) {
-				// Tauri 外では tick が来ないため、残り時間表示のプレビュー用に種を置く。
+				// Tauri 外では tick が来ないため、表示のプレビュー用に種を置く。
 				if (p === 'shower') remainingSecs = Number(params.get('remaining')) || 300;
-				applyPhase(p, params.get('last') === '1');
+				if (p === 'finished') finishedSets = Number(params.get('sets')) || 4;
+				applyPhase(p);
 			}
 		}
 	});
@@ -241,6 +256,11 @@
 <div class="overlay">
 	<canvas bind:this={canvas} class:degraded></canvas>
 
+	<!-- セット終了の暗転（虹より下に敷く）。虹は screen 合成で上に乗る。 -->
+	{#if phase === 'finished'}
+		<div class="finish-dim"></div>
+	{/if}
+
 	{#if rainbow}
 		<div class="rainbow" style:animation-duration={`${FINAL_CLEARING_SECS}s`}></div>
 	{/if}
@@ -253,6 +273,20 @@
 		<div class="escape">
 			<button onclick={() => skipBreak()}>この通り雨をやり過ごす（Skip）</button>
 			<p class="hint">Esc でも作業に戻れます</p>
+		</div>
+	{/if}
+
+	<!-- セット終了画面: 虹を背に「もう一度／終了」を選ばせる。 -->
+	{#if phase === 'finished'}
+		<div class="finish-card">
+			<p class="finish-title">おつかれさま</p>
+			{#if finishedSets > 0}
+				<p class="finish-sub">{finishedSets} セット、やり切りました</p>
+			{/if}
+			<div class="finish-actions">
+				<button class="primary" onclick={() => restartSession()}>もう一度</button>
+				<button class="ghost" onclick={() => quitApp()}>終了</button>
+			</div>
 		</div>
 	{/if}
 </div>
@@ -281,9 +315,10 @@
 	canvas.degraded {
 		background: linear-gradient(180deg, rgba(13, 18, 26, 0.72), rgba(22, 31, 44, 0.88));
 	}
-	/* 通り雨をすべてやり過ごした最終セットだけに架かる、ぼんやりした虹。
-	   画面下のさらに下を中心とする大円の上弧だけを見せる。動きは opacity のみ
-	   なので reduced-motion でも穏やか。劣化モードでも出す（CSS のみで描ける）。 */
+	/* セット終了画面に架かる、ぼんやりした虹。画面下のさらに下を中心とする
+	   大円の上弧だけを見せる。動きは opacity のみなので reduced-motion でも
+	   穏やか。劣化モードでも出す（CSS のみで描ける）。終了画面は留まるので
+	   フェードインして保持する（消えない）。 */
 	.rainbow {
 		position: absolute;
 		inset: 0;
@@ -308,20 +343,16 @@
 		animation-fill-mode: forwards;
 		/* animation-duration はマークアップ側で FINAL_CLEARING_SECS に同期 */
 	}
-	/* 序盤（雨がまだ残る 0〜26% ≒ CLEARING_SECS）は出さず、半ばで満ち、終わりに引く。 */
+	/* ゆっくり架かり、そのまま留まる（終了画面が続く間ずっと見える）。 */
 	@keyframes rainbow-arc {
-		0%,
-		26% {
+		0% {
 			opacity: 0;
 		}
-		50% {
-			opacity: 1;
-		}
-		76% {
+		35% {
 			opacity: 1;
 		}
 		100% {
-			opacity: 0;
+			opacity: 1;
 		}
 	}
 	/* 通り雨中の残り時間。雨ガラス越しに浮かぶ、控えめで滲んだ表示。
@@ -381,5 +412,86 @@
 		margin: 0.6rem 0 0;
 		font-size: 0.8rem;
 		opacity: 0.7;
+	}
+
+	/* セット終了の暗転。雨上がりの空のように、上は澄み下はほのかに暗い。
+	   虹（screen 合成）はこの上に乗るので、虹を沈ませないよう控えめに。 */
+	.finish-dim {
+		position: absolute;
+		inset: 0;
+		pointer-events: none;
+		background: linear-gradient(180deg, rgba(12, 18, 28, 0.55), rgba(8, 12, 20, 0.78));
+		animation: finish-fade 0.8s ease forwards;
+	}
+	/* セット終了画面のカード（中央）。クリックを受ける唯一の要素。 */
+	.finish-card {
+		position: absolute;
+		left: 50%;
+		top: 50%;
+		transform: translate(-50%, -50%);
+		text-align: center;
+		color: #eef4fc;
+		font-family: system-ui, sans-serif;
+		user-select: none;
+		animation: finish-rise 0.9s ease forwards;
+	}
+	/* 虹の明るい帯に文字が重なっても読めるよう、カード背後にソフトな暗がりを敷く。 */
+	.finish-card::before {
+		content: '';
+		position: absolute;
+		inset: -56px -96px;
+		z-index: -1;
+		pointer-events: none;
+		background: radial-gradient(ellipse at center, rgba(8, 12, 20, 0.62), transparent 72%);
+	}
+	.finish-title {
+		margin: 0;
+		font-size: 2.4rem;
+		font-weight: 300;
+		letter-spacing: 0.08em;
+		text-shadow: 0 2px 24px rgba(0, 0, 0, 0.55);
+	}
+	.finish-sub {
+		margin: 0.8rem 0 0;
+		font-size: 1rem;
+		letter-spacing: 0.12em;
+		opacity: 0.8;
+	}
+	.finish-actions {
+		margin-top: 2.2rem;
+		display: flex;
+		gap: 1rem;
+		justify-content: center;
+	}
+	/* 「もう一度」は主アクションとして少し強調、「終了」は控えめ。 */
+	.finish-actions .primary {
+		background: rgba(120, 150, 200, 0.32);
+		border-color: rgba(200, 220, 245, 0.5);
+		font-size: 1.05rem;
+		padding: 0.8rem 2rem;
+	}
+	.finish-actions .primary:hover {
+		background: rgba(140, 172, 222, 0.46);
+	}
+	.finish-actions .ghost {
+		background: rgba(20, 28, 40, 0.4);
+	}
+	@keyframes finish-fade {
+		from {
+			opacity: 0;
+		}
+		to {
+			opacity: 1;
+		}
+	}
+	@keyframes finish-rise {
+		from {
+			opacity: 0;
+			transform: translate(-50%, calc(-50% + 12px));
+		}
+		to {
+			opacity: 1;
+			transform: translate(-50%, -50%);
+		}
 	}
 </style>
