@@ -258,6 +258,7 @@ Rainbreak/
 │     ├─ scheduler.rs         # tokio interval（1s tick）
 │     ├─ glue.rs              # イベント emit + フェーズ遷移の副作用集約
 │     ├─ windows.rs           # ウィンドウ制御（show/hide/最前面/クリックスルー）
+│     ├─ macos.rs             # macOS固有: 全画面Space共存・キャプチャ除外
 │     ├─ shortcuts.rs         # グローバル Esc
 │     ├─ tray.rs              # トレイ・メニュー
 │     ├─ commands.rs          # #[tauri::command]
@@ -306,7 +307,7 @@ Rainbreak/
 - [x] 自動アップデート（起動時チェック＋確認ダイアログ、トレイの「アップデートを確認…」。配信には署名鍵の Secrets 登録が必要 → [配布 / リリース](#配布--リリース)）
 
 ### 公開前の残作業
-- [ ] 実機検証ゲート — 特に macOS 全画面共存はネイティブ実装が未着手（詳細は下記「⚠️ 技術検証ゲート（未了）」）
+- [ ] 実機検証ゲート — macOS 全画面共存のネイティブ実装は完了、実機での合否確認が未了（手順: [docs/macos-fullscreen-gate.md](docs/macos-fullscreen-gate.md)。詳細は下記「⚠️ 技術検証ゲート（未了）」）
 - [ ] 初回リリース v0.1.0 の公開（ドラフト作成までは確認済み）
 - [ ] 背景静止画の差し替え（現在は `tools/gen-assets.mjs` が生成するプレースホルダ）
 
@@ -349,7 +350,7 @@ Rainbreak/
 
 実装は骨格を先行させたため、設計の前提を支える次の2点は**実機検証が未了のまま残っています**。ここが転ぶと設計を組み替える必要があります。
 
-1. **macOS：ユーザーの全画面アプリ上へのオーバーレイ表示。** 全画面エディタ／動画／Zoom の**上に**予兆・通り雨が出るか。必要なネイティブ実装（`NSWindowCollectionBehaviorFullScreenAuxiliary` ＋ `canJoinAllSpaces` ＋ window level）は**未着手**で、現状の overlay は「最前面＋maximize」のみ（`src-tauri/src/windows.rs` 参照）。**未達なら中核体験が発火しない最優先課題**。
+1. **macOS：ユーザーの全画面アプリ上へのオーバーレイ表示。** 全画面エディタ／動画／Zoom の**上に**予兆・通り雨が出るか。必要なネイティブ実装（`NSWindowCollectionBehaviorFullScreenAuxiliary` ＋ `canJoinAllSpaces`、あわせてフォーカス非奪取・キャプチャ除外 `sharingType`・モニタ全域カバー）は**実装済み**（`src-tauri/src/macos.rs`）。**実機での合否確認が未了**で、手順とチェックリストは [docs/macos-fullscreen-gate.md](docs/macos-fullscreen-gate.md)。不合格なら「全画面アプリ検知中はトレイ通知へ降格」へ設計を組み替える（要件 §11）。
 2. **予兆 → 通り雨のクリックスルー切替の体感。** `setIgnoreCursorEvents` ON→OFF 切替時のクリック取りこぼし／誤クリックを mac / win 両方で確認。
 
 > 副次的に、内蔵GPU 機での通り雨フルスクリーン時の実機FPS も測ります（raindrop-fx の粒数上限は計測結果で引き上げる前提の保守値）。詳細は実装計画 **Phase 0** を参照。

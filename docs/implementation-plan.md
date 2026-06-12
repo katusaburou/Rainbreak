@@ -66,6 +66,7 @@ gantt
 - **検証手段**: `NSWindowCollectionBehaviorFullScreenAuxiliary` ＋ `canJoinAllSpaces` ＋ 適切な window level の組み合わせ。Tauri から `tauri-nspanel` 系または `objc`/`cocoa` クレート経由で `NSWindow` の `collectionBehavior` / `level` を設定して確認。
 - **合格基準**: 別アプリの全画面 Space に切り替えても、オーバーレイが前面に重なって見える。
 - **フォールバック（不合格時）**: 「全画面アプリ検知中は予兆をスキップし、トレイ通知へ降格」を設計に追加（§11）。この分岐の有無で Phase 1 のウィンドウ制御の作りが変わるため、**最初に確定させる**。
+- **状況（2026-06）**: 骨格を先行させた経緯から、捨てプロトではなく本実装へ直接組み込んだ（2 窓の構成が既にあるため）。`src-tauri/src/macos.rs` が `collectionBehavior`（canJoinAllSpaces ＋ fullScreenAuxiliary）と `sharingType` を設定し、overlay は非キー表示（フォーカス非奪取）・モニタ全域カバーに変更済み。window level は逃げ場（トレイ・Zoom UI）を塞がないよう Floating のまま。**実機での合否確認が未了** — 手順は [macos-fullscreen-gate.md](macos-fullscreen-gate.md)。
 
 ### Gate 2 — クリックスルー切替の体感
 - **問い**: `setIgnoreCursorEvents` を予兆 ON → 通り雨 OFF に切り替える瞬間、クリックの取りこぼし・誤クリック（背後へ抜ける／抜けない）がないか。

@@ -4,6 +4,8 @@
 mod commands;
 mod config;
 mod glue;
+#[cfg(target_os = "macos")]
+mod macos;
 mod scheduler;
 mod shortcuts;
 mod state;
