@@ -76,6 +76,14 @@ export class RaindropFxBackend implements RainBackend {
 		Object.assign(this.fx.options, intensityParams(clamp(value, 0, 1)));
 	}
 
+	setGlass(frosted: boolean): void {
+		if (!this.fx || this.destroyed) return;
+		// 屈折・陰影・スペキュラは options 参照なので次フレームで効く。
+		// backgroundBlurSteps / mistBlurStep はテクスチャ再生成を伴うため、
+		// 反映は次の setBackground（通り雨は 2.5 秒間隔のキャプチャ）から。
+		Object.assign(this.fx.options, glassParams(frosted));
+	}
+
 	setBackground(url: string): Promise<void> {
 		// 初回 start()（loadAssets）前に fx.setBackground を呼ぶとテクスチャ未生成で
 		// 落ちるため、resize と同じく loaded をゲートに直列化する。
@@ -184,6 +192,37 @@ function intensityParams(i: number): Partial<FxOptions> {
 		trailDropDensity: lerp(0.1, 0.25, i),
 		evaporate: lerp(30, 10, i)
 	};
+}
+
+/**
+ * すりガラス度の写像。通り雨（frosted=true）は背景ぼかしを一段深くして板
+ * ガラスの曇りを出し、水滴側は屈折・立体感・スペキュラを強めて「ガラスに
+ * 付いた雫」を際立たせる。予兆（false）は背景を読める控えめな値（init の
+ * 構築時パラメータと同値）へ戻し、クリックスルー中の作業継続を妨げない。
+ *
+ * backgroundBlurSteps / mistBlurStep の変更はぼかしテクスチャの再生成を伴う
+ * ため、次の setBackground（モードB は降雨中 2.5 秒間隔で更新）で反映される。
+ * refractScale / raindropLightBump / スペキュラは options 参照なので次フレーム
+ * で効く。
+ */
+function glassParams(frosted: boolean): Partial<FxOptions> {
+	return frosted
+		? {
+				backgroundBlurSteps: 4, // すりガラス（背景をひと回り曇らせる）
+				mistBlurStep: 5, // 推奨 = backgroundBlurSteps + 1
+				refractScale: 0.85, // 雫越しの像をくっきり屈折
+				raindropLightBump: 0.5, // 法線を立て、縁の陰影＝立体感を強める
+				raindropSpecularLight: [0.45, 0.5, 0.58], // 雫が光を拾う淡いハイライト
+				raindropSpecularShininess: 180
+			}
+		: {
+				backgroundBlurSteps: 3, // 背景が読める控えめなぼかし
+				mistBlurStep: 4,
+				refractScale: 0.7,
+				raindropLightBump: 0.6,
+				raindropSpecularLight: [0, 0, 0], // ハイライトなし
+				raindropSpecularShininess: 256
+			};
 }
 
 function lerp(a: number, b: number, t: number): number {

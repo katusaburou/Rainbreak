@@ -21,6 +21,13 @@ export interface RainBackend {
 	 * data URL / 通常 URL のどちらも受け付ける。
 	 */
 	setBackground(url: string): Promise<void>;
+	/**
+	 * すりガラスの度合いを切り替える。通り雨は frosted=true で背景ぼかしを
+	 * 一段深め、水滴の屈折・陰影・ハイライトを立てて「ガラスに付いた雫」を
+	 * 際立たせる。予兆は frosted=false（背景を読める控えめなぼかし）へ戻す。
+	 * 背景ぼかしの変更は次の setBackground 時に反映される。
+	 */
+	setGlass(frosted: boolean): void;
 	start(): void;
 	stop(): void;
 	/** CSS ピクセルでのリサイズ。 */

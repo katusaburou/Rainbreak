@@ -8,6 +8,7 @@
 		onPhaseChanged,
 		onIncomingProgress,
 		onConfigChanged,
+		onTick,
 		getConfig,
 		skipBreak,
 		captureScreen,
@@ -17,6 +18,8 @@
 
 	let canvas: HTMLCanvasElement;
 	let phase = $state<Phase>('work');
+	// 通り雨中だけ表示する休憩の残り時間（秒）。tick で毎秒更新する。
+	let remainingSecs = $state(0);
 	// 雨が描けない劣化モード（WebGL2 なし / reduced-motion / 初期化失敗）。
 	// canvas に CSS の静的ベールを出して「通り雨中」を可視化する。
 	let degraded = $state(false);
@@ -104,7 +107,9 @@
 				// 強さは incoming-progress で 0→1 に動かす。
 				// ガラスは半透明上限に抑え、背景は実画面のキャプチャに切り替える
 				// （クリックスルー ON と合わせて、降り始めの 30 秒は作業を続けられる）。
+				// すりガラスは控えめ（背景が読める）にして作業継続を妨げない。
 				rain.setMaxOpacity(INCOMING_MAX_OPACITY);
+				rain.setGlass(false);
 				startCaptureLoop();
 				rain.setIntensity(0);
 				rain.start();
@@ -112,6 +117,9 @@
 			case 'shower':
 				// ガラスを現れきらせる。背景キャプチャは引き続き追従させ、
 				// 「いまの画面がガラス越しに雨に濡れている」見えにする。
+				// すりガラスを一段深め、水滴を際立たせる（setGlass は次回の
+				// キャプチャ反映前に呼び、直後の background 更新へ効かせる）。
+				rain.setGlass(true);
 				rain.setMaxOpacity(1, SHOWER_GLASS_FADE_MS);
 				startCaptureLoop();
 				rain.setIntensity(1);
@@ -146,6 +154,13 @@
 		}
 	}
 
+	// 残り秒を m:ss に整形（通り雨の残り時間表示用）。
+	function fmtTime(total: number): string {
+		const s = Math.max(0, Math.floor(total));
+		const m = Math.floor(s / 60);
+		return `${m}:${String(s % 60).padStart(2, '0')}`;
+	}
+
 	function onKeydown(e: KeyboardEvent) {
 		// 通り雨／予兆は Esc で切り上げ（Rust 側のグローバルショートカットと二重化）。
 		if (e.key === 'Escape' && (phase === 'shower' || phase === 'incoming')) {
@@ -177,6 +192,12 @@
 				})
 			);
 			unlisten.push(
+				await onTick((t) => {
+					// 通り雨の残り時間だけ拾う（他フェーズの表示はしない）。
+					if (t.phase === 'shower') remainingSecs = t.remaining_secs;
+				})
+			);
+			unlisten.push(
 				await onConfigChanged((c) => {
 					audio?.setVolume(c.volume);
 					audio?.setMuted(c.muted);
@@ -200,6 +221,8 @@
 				p === 'clearing' ||
 				p === 'finished'
 			) {
+				// Tauri 外では tick が来ないため、残り時間表示のプレビュー用に種を置く。
+				if (p === 'shower') remainingSecs = Number(params.get('remaining')) || 300;
 				applyPhase(p, params.get('last') === '1');
 			}
 		}
@@ -223,6 +246,10 @@
 	{/if}
 
 	{#if phase === 'shower'}
+		<div class="remaining">
+			<span class="time">{fmtTime(remainingSecs)}</span>
+			<span class="label">休憩中</span>
+		</div>
 		<div class="escape">
 			<button onclick={() => skipBreak()}>この通り雨をやり過ごす（Skip）</button>
 			<p class="hint">Esc でも作業に戻れます</p>
@@ -296,6 +323,35 @@
 		100% {
 			opacity: 0;
 		}
+	}
+	/* 通り雨中の残り時間。雨ガラス越しに浮かぶ、控えめで滲んだ表示。
+	   クリックは奪わない（pointer-events: none）。 */
+	.remaining {
+		position: absolute;
+		left: 50%;
+		top: 30vh;
+		transform: translateX(-50%);
+		text-align: center;
+		color: #eef4fc;
+		font-family: system-ui, sans-serif;
+		user-select: none;
+		pointer-events: none;
+		text-shadow: 0 2px 22px rgba(0, 0, 0, 0.5);
+	}
+	.remaining .time {
+		display: block;
+		font-size: 4.6rem;
+		font-weight: 200;
+		line-height: 1;
+		letter-spacing: 0.04em;
+		font-variant-numeric: tabular-nums;
+	}
+	.remaining .label {
+		display: block;
+		margin-top: 0.6rem;
+		font-size: 0.9rem;
+		letter-spacing: 0.4em;
+		opacity: 0.7;
 	}
 	.escape {
 		position: absolute;

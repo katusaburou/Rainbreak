@@ -116,6 +116,15 @@ export class RainRenderer {
 		await this.backend?.setBackground(url);
 	}
 
+	/**
+	 * すりガラスの度合い（通り雨で frosted=true）。背景ぼかしを深め、水滴の
+	 * 屈折・陰影・ハイライトを立てて「ガラスに付いた雫」を際立たせる。予兆は
+	 * false で背景を読める控えめなぼかしに戻す。劣化モードでは無効（背景なし）。
+	 */
+	setGlass(frosted: boolean): void {
+		this.backend?.setGlass(frosted);
+	}
+
 	/** アニメーション開始。非表示中は visibilitychange の復帰時に始める。 */
 	start(): void {
 		this.desiredRunning = true;
