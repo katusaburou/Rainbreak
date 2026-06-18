@@ -358,7 +358,9 @@ Rainbreak/
 
 ## ライセンス
 
-未定（個人開発 / ポートフォリオ用途）。
+[MIT License](LICENSE) — © 2026 katusaburou
+
+本ソフトウェアは MIT ライセンスの下で公開しています。詳細は [LICENSE](LICENSE) を参照してください。
 
 ---
 
