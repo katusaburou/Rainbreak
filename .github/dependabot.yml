@@ -1,0 +1,53 @@
+version: 2
+
+# 依存の更新 PR を自動で起こす。
+# とくに GitHub Actions は SHA ピン止め（ワークフロー内の `@<sha> # vX.Y.Z`）を
+# 採用しているため、手動だと更新が滞りがち。Dependabot が SHA とコメントの
+# バージョンを揃えて引き上げてくれるので、ピン止めの保守コストを肩代わりさせる。
+updates:
+  # GitHub Actions（.github/workflows/*.yml の uses: を走査）。
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      # まとめて 1 PR にして通知ノイズを抑える。
+      github-actions:
+        patterns:
+          - "*"
+
+  # フロント依存（pnpm: package.json / pnpm-lock.yaml）。
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      npm-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+
+  # Rust: アプリシェル（src-tauri/Cargo.lock）。
+  - package-ecosystem: "cargo"
+    directory: "/src-tauri"
+    schedule:
+      interval: "weekly"
+    groups:
+      cargo-app:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+
+  # Rust: 時間の真実コアクレート（crates/core/Cargo.lock）。
+  - package-ecosystem: "cargo"
+    directory: "/crates/core"
+    schedule:
+      interval: "weekly"
+    groups:
+      cargo-core:
+        patterns:
+          - "*"
