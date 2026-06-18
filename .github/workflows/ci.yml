@@ -68,3 +68,30 @@ jobs:
       - run: pnpm tauri icon app-icon.png
       - run: pnpm run build
       - run: cargo build --manifest-path src-tauri/Cargo.toml
+
+  # 依存の既知脆弱性チェック（Rust: RustSec / フロント: pnpm audit）。
+  # フロントは配布物が静的ビルド済みアセットのため、本番に同梱される依存だけを
+  # --prod でゲートする（dev サーバ専用の指摘で CI を赤くしない）。
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      # プリビルドの cargo-audit を取得（cargo install のコンパイル待ちを避ける）。
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit
+      - name: cargo audit（アプリシェル）
+        run: cargo audit --file src-tauri/Cargo.lock
+      - name: cargo audit（コアクレート）
+        run: cargo audit --file crates/core/Cargo.lock
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: pnpm audit（本番依存のみ）
+        run: pnpm audit --prod
