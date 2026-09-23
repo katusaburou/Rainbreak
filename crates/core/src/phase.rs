@@ -63,8 +63,8 @@ impl CycleConfig {
     /// 分から生成する。0 分は不正なので最低 1 分にクランプする。セット数は無制限。
     pub fn from_minutes(work_min: u32, break_min: u32) -> Self {
         Self {
-            work_secs: work_min.max(1) * 60,
-            break_secs: break_min.max(1) * 60,
+            work_secs: work_min.max(1).saturating_mul(60),
+            break_secs: break_min.max(1).saturating_mul(60),
             sets: 0,
         }
     }
@@ -200,10 +200,7 @@ impl Timer {
     pub fn skip(&mut self) -> TimerSnapshot {
         match self.phase {
             Phase::Incoming => self.enter_work(),
-            Phase::Finished => {
-                self.cycle = 0; // enter_work の加算で 1 に戻る
-                self.enter_work();
-            }
+            Phase::Finished => self.restart_session(),
             _ => self.advance_cycle(),
         }
         self.snapshot(true)
@@ -218,12 +215,7 @@ impl Timer {
     /// クランプし、即時に反映されるようにする（実装計画 §4 のテスト観点）。
     pub fn update_config(&mut self, cfg: CycleConfig) {
         self.cfg = cfg;
-        let cap = match self.phase {
-            Phase::Work | Phase::Incoming => self.cfg.work_secs,
-            Phase::Shower => self.cfg.break_secs,
-            Phase::Clearing => self.clearing_total(),
-            Phase::Finished => 0,
-        };
+        let cap = self.segment_total_secs();
         if self.remaining > cap {
             self.remaining = cap;
         }
@@ -257,6 +249,13 @@ impl Timer {
         self.phase = Phase::Work;
         self.remaining = self.cfg.work_secs;
         self.cycle += 1;
+    }
+
+    /// 完了済みセッションのカウンターを初期化し、セット 1 から再開する。
+    fn restart_session(&mut self) {
+        self.phase = Phase::Work;
+        self.remaining = self.cfg.work_secs;
+        self.cycle = 1;
     }
 
     fn enter_finished(&mut self) {
@@ -372,6 +371,13 @@ mod tests {
         assert_eq!(c.break_secs, 60);
         assert_eq!(c.sets, 0); // 既定は無制限
         assert_eq!(c.with_sets(4).sets, 4);
+    }
+
+    #[test]
+    fn config_from_minutes_saturates_extreme_values() {
+        let c = CycleConfig::from_minutes(u32::MAX, u32::MAX);
+        assert_eq!(c.work_secs, u32::MAX);
+        assert_eq!(c.break_secs, u32::MAX);
     }
 
     #[test]

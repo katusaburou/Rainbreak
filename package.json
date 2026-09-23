@@ -1,6 +1,6 @@
 {
   "name": "rainbreak",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "雨やどり / Rainbreak — ポモドーロ型タイマー × 窓ガラスを流れる雨のアンビエント表現。",
   "license": "MIT",
   "private": true,
@@ -14,18 +14,18 @@
   },
   "devDependencies": {
     "@sveltejs/adapter-static": "^3.0.10",
-    "@sveltejs/kit": "^2.65.0",
+    "@sveltejs/kit": "^2.65.2",
     "@sveltejs/vite-plugin-svelte": "^6.2.4",
-    "@tauri-apps/cli": "^2.1.0",
+    "@tauri-apps/cli": "^2.11.2",
     "@types/node": "^22.19.20",
-    "svelte": "^5.2.0",
-    "svelte-check": "^4.0.0",
-    "tslib": "^2.7.0",
-    "typescript": "^5.6.0",
+    "svelte": "^5.56.3",
+    "svelte-check": "^4.6.0",
+    "tslib": "^2.8.1",
+    "typescript": "^5.9.3",
     "vite": "^6.4.3"
   },
   "dependencies": {
-    "@tauri-apps/api": "^2.1.0",
+    "@tauri-apps/api": "^2.11.0",
     "raindrop-fx": "^1.0.8"
   },
   "pnpm": {
