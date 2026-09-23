@@ -149,7 +149,7 @@ flowchart TB
 | スケジューラ | **Rust**（tokio interval） | バックエンド駆動でタイマー精度を担保。状態機械は `crates/core` に分離し単体テスト。 |
 | 音 | **Web Audio**（自前合成） | 擬似ピンクノイズ＋ローパスで雨音を合成（音声アセット・外部ライブラリ不使用）。フェードイン／アウト。 |
 
-> TypeScript 6 への移行可否と検証手順は [TypeScript 6 移行判断](docs/typescript-6-upgrade.md) に記録しています。
+> TypeScript 6 への移行時の確認内容と今後の major 更新方針は [TypeScript 6 移行記録](docs/typescript-6-upgrade.md) に記録しています。
 
 > **Electron を選ぶ条件**（不採用理由の裏返し）: Linux 含む全OSで WebGL を盤石にしたい、または Rust を一切入れたくない場合のみ。本件はどちらにも当たりません。
 

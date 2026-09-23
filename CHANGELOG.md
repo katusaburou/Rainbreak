@@ -2,6 +2,11 @@
 
 本プロジェクトの注目すべき変更を記録します。形式は [Keep a Changelog](https://keepachangelog.com/ja/1.1.0/) に、バージョニングは [Semantic Versioning](https://semver.org/lang/ja/) に従います。
 
+## [Unreleased]
+
+### 変更
+- 開発依存の TypeScript を 5.9 から 6.0 へ更新
+
 ## [1.1.0] - 2026-09-23
 
 ### 変更
