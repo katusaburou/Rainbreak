@@ -1,24 +1,24 @@
 [package]
 name = "rainbreak"
-version = "1.0.0"
+version = "1.1.0"
 description = "雨やどり / Rainbreak — 通り雨で休む作業タイマー"
 edition = "2021"
 rust-version = "1.77"
 
 [build-dependencies]
-tauri-build = { version = "2", features = [] }
+tauri-build = { version = "2.6.3", features = [] }
 
 [dependencies]
 # 透過ウィンドウ（macos-private-api）とトレイ（tray-icon）を使う。
-tauri = { version = "2", features = ["tray-icon", "macos-private-api"] }
-tauri-plugin-autostart = "2"
-tauri-plugin-global-shortcut = "2"
+tauri = { version = "2.11.3", features = ["tray-icon", "macos-private-api"] }
+tauri-plugin-autostart = "2.5.1"
+tauri-plugin-global-shortcut = "2.3.2"
 # 自動アップデート（GitHub Releases の latest.json を参照）と確認ダイアログ。
-tauri-plugin-updater = "2"
-tauri-plugin-dialog = "2"
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-tokio = { version = "1", features = ["time", "rt", "macros", "sync"] }
+tauri-plugin-updater = "2.10.1"
+tauri-plugin-dialog = "2.7.1"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.150"
+tokio = { version = "1.52.3", features = ["time", "rt", "macros", "sync"] }
 
 # 時間の真実（状態機械）は Tauri 非依存のコアクレートに分離（テスト容易性）。
 rainbreak-core = { path = "../crates/core" }
@@ -26,14 +26,14 @@ rainbreak-core = { path = "../crates/core" }
 # モードB: 雨ガラスの屈折元に使う画面キャプチャ（capture_screen コマンド）。
 # image は JPEG エンコードにだけ使うので既定フォーマット群（avif 等）は外す。
 xcap = "0.9.6"
-image = { version = "0.25.6", default-features = false, features = ["jpeg"] }
+image = { version = "0.25.10", default-features = false, features = ["jpeg"] }
 base64 = "0.22.1"
 
 # macOS: 全画面 Space 共存（collectionBehavior）とキャプチャ除外（sharingType）。
 # tao が露出しない NSWindow 属性を直接設定する（macos.rs / 要件 §11 Gate 1）。
 # バージョンは tao/wry が使うものと同一系列（Cargo.lock 上で 1 本に揃う）。
 [target.'cfg(target_os = "macos")'.dependencies]
-objc2-app-kit = { version = "0.3", default-features = false, features = [
+objc2-app-kit = { version = "0.3.2", default-features = false, features = [
     "std",
     "NSResponder",
     "NSWindow",

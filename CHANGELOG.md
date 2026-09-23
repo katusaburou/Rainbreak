@@ -2,6 +2,15 @@
 
 本プロジェクトの注目すべき変更を記録します。形式は [Keep a Changelog](https://keepachangelog.com/ja/1.1.0/) に、バージョニングは [Semantic Versioning](https://semver.org/lang/ja/) に従います。
 
+## [1.1.0] - 2026-09-23
+
+### 変更
+- フロントエンドと Rust/Tauri の直接依存関係を、検証済みのロックファイルと一致するバージョンへ更新
+- タイマーのセッション再開処理とセグメント長の算出処理を整理
+
+### 修正
+- 極端に大きな分数設定を秒へ変換した際に整数オーバーフローしないよう飽和演算へ変更
+
 ## [1.0.0] - 2026-06-12
 
 初の正式公開リリースです。ポモドーロ型の作業タイマーと、窓ガラスを流れる雨のアンビエント表現を組み合わせた macOS / Windows 向けデスクトップ常駐アプリ。
@@ -39,4 +48,5 @@
 - macOS の全画面共存・クリックスルー切替は実機での合否確認が未了（実装済み・検証手順は `docs/macos-fullscreen-gate.md`）
 - 背景静止画（モードA のフォールバック）はプレースホルダ
 
+[1.1.0]: https://github.com/katusaburou/Rainbreak/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/katusaburou/Rainbreak/releases/tag/v1.0.0
