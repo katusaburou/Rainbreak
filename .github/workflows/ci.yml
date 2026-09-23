@@ -24,6 +24,7 @@ jobs:
           workspaces: crates/core -> target
           # PR/タグ実行では保存しない（Windows の post cache 保存フレーク回避）。
           save-if: ${{ github.ref == 'refs/heads/main' }}
+      - run: cargo fmt --all --manifest-path crates/core/Cargo.toml -- --check
       - run: cargo test --manifest-path crates/core/Cargo.toml
 
   # フロント（SvelteKit SPA）の型チェックと静的ビルド。
@@ -67,6 +68,7 @@ jobs:
           workspaces: src-tauri -> target
           # PR/タグ実行では保存しない（Windows の post cache 保存フレーク回避）。
           save-if: ${{ github.ref == 'refs/heads/main' }}
+      - run: cargo fmt --all --manifest-path src-tauri/Cargo.toml -- --check
       - run: pnpm install --frozen-lockfile
       - run: node tools/gen-assets.mjs
       - run: pnpm tauri icon app-icon.png
