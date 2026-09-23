@@ -14,10 +14,19 @@ pub fn build(app: &AppHandle) -> tauri::Result<()> {
     let toggle = MenuItem::with_id(app, "toggle", "一時停止 / 再開", true, None::<&str>)?;
     let skip = MenuItem::with_id(app, "skip", "Skip（作業へ戻る）", true, None::<&str>)?;
     let settings = MenuItem::with_id(app, "settings", "設定…", true, None::<&str>)?;
-    let check_update = MenuItem::with_id(app, "check_update", "アップデートを確認…", true, None::<&str>)?;
+    let check_update = MenuItem::with_id(
+        app,
+        "check_update",
+        "アップデートを確認…",
+        true,
+        None::<&str>,
+    )?;
     let quit = MenuItem::with_id(app, "quit", "終了", true, None::<&str>)?;
     let sep = PredefinedMenuItem::separator(app)?;
-    let menu = Menu::with_items(app, &[&toggle, &skip, &sep, &settings, &check_update, &quit])?;
+    let menu = Menu::with_items(
+        app,
+        &[&toggle, &skip, &sep, &settings, &check_update, &quit],
+    )?;
 
     let mut builder = TrayIconBuilder::with_id("main")
         .tooltip("雨やどり")
@@ -46,7 +55,11 @@ pub fn update(app: &AppHandle, phase: Phase, remaining: u32) {
         let text = if phase == Phase::Finished {
             format!("雨やどり — {}", glue::phase_label(phase))
         } else {
-            format!("雨やどり — {} {}", glue::phase_label(phase), glue::fmt_mmss(remaining))
+            format!(
+                "雨やどり — {} {}",
+                glue::phase_label(phase),
+                glue::fmt_mmss(remaining)
+            )
         };
         let _ = tray.set_tooltip(Some(text));
     }

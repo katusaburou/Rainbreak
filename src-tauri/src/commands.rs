@@ -72,11 +72,9 @@ pub fn update_config(app: AppHandle, cfg: AppConfig) {
     config::save(&app, &cfg);
     {
         let state = app.state::<AppState>();
-        state
-            .timer
-            .lock()
-            .unwrap()
-            .update_config(CycleConfig::from_minutes(cfg.work_min, cfg.break_min).with_sets(cfg.sets));
+        state.timer.lock().unwrap().update_config(
+            CycleConfig::from_minutes(cfg.work_min, cfg.break_min).with_sets(cfg.sets),
+        );
         *state.config.lock().unwrap() = cfg.clone();
     }
     apply_autostart(&app, cfg.autostart);
@@ -167,7 +165,10 @@ mod tests {
     fn capture_returns_jpeg_data_url() {
         let url = super::capture_jpeg_data_url(None).expect("display capture should succeed");
         assert!(url.starts_with("data:image/jpeg;base64,"));
-        assert!(url.len() > 10_000, "captured image should not be trivially small");
+        assert!(
+            url.len() > 10_000,
+            "captured image should not be trivially small"
+        );
     }
 }
 

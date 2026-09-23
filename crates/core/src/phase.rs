@@ -418,6 +418,7 @@ mod tests {
         assert_eq!(changes[1].0, 120); // Incoming->Shower（作業満了）
         assert_eq!(changes[2].0, 180); // Shower->Clearing（休憩満了）
         assert_eq!(changes[3].0, 183); // Clearing->Work（フェード完了）
+
         // ループ後は新しい作業サイクル。
         assert_eq!(t.phase(), Phase::Work);
         assert_eq!(t.remaining_secs(), 120);

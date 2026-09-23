@@ -83,8 +83,9 @@ fn main() {
         .setup(|app| {
             let handle = app.handle();
             let cfg = config::load(handle);
-            let timer =
-                Timer::new(CycleConfig::from_minutes(cfg.work_min, cfg.break_min).with_sets(cfg.sets));
+            let timer = Timer::new(
+                CycleConfig::from_minutes(cfg.work_min, cfg.break_min).with_sets(cfg.sets),
+            );
             app.manage(AppState {
                 timer: Mutex::new(timer),
                 config: Mutex::new(cfg.clone()),
