@@ -21,6 +21,11 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    ignore:
+      # @types/node のメジャーは実行する Node（CI は 20 系）に合わせたいので、
+      # メジャー更新は Node 本体を上げるときに手動で行う。
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
     groups:
       npm-minor-patch:
         patterns:
