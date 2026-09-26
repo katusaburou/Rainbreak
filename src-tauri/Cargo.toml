@@ -27,7 +27,7 @@ rainbreak-core = { path = "../crates/core" }
 # image は JPEG エンコードにだけ使うので既定フォーマット群（avif 等）は外す。
 xcap = "0.9.6"
 image = { version = "0.25.10", default-features = false, features = ["jpeg"] }
-base64 = "0.22.1"
+base64 = "0.23.1"
 
 # macOS: 全画面 Space 共存（collectionBehavior）とキャプチャ除外（sharingType）。
 # tao が露出しない NSWindow 属性を直接設定する（macos.rs / 要件 §11 Gate 1）。
