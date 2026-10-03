@@ -62,6 +62,11 @@ pub fn resume(app: AppHandle) {
 }
 
 #[tauri::command]
+pub fn get_app_version(app: AppHandle) -> String {
+    app.package_info().version.to_string()
+}
+
+#[tauri::command]
 pub fn get_config(state: State<AppState>) -> AppConfig {
     state.config.lock().unwrap().clone()
 }

@@ -65,6 +65,7 @@ fn main() {
             commands::pause,
             commands::resume,
             commands::get_config,
+            commands::get_app_version,
             commands::update_config,
             commands::quit,
             commands::capture_screen,

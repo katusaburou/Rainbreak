@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { getConfig, updateConfig, type AppConfig } from '$lib/ipc';
+	import { getAppVersion, getConfig, updateConfig, type AppConfig } from '$lib/ipc';
 
 	let cfg = $state<AppConfig>({
 		work_min: 20,
@@ -15,8 +15,14 @@
 	let loaded = $state(false);
 	let saving = $state(false);
 	let savedAt = $state(0);
+	let appVersion = $state('');
 
 	onMount(async () => {
+		void getAppVersion()
+			.then((version) => { appVersion = version; })
+			.catch(() => {
+				// ブラウザプレビューでは実行中のアプリがないので表示しない。
+			});
 		try {
 			cfg = await getConfig();
 		} catch {
@@ -49,7 +55,10 @@
 </script>
 
 <main>
-	<h1>設定</h1>
+	<header>
+		<h1>設定</h1>
+		{#if appVersion}<span class="version">雨やどり v{appVersion}</span>{/if}
+	</header>
 
 	{#if !loaded}
 		<p class="muted">読み込み中…</p>
@@ -100,6 +109,7 @@
 
 		<section>
 			<h2>起動</h2>
+			<p class="hint">起動約10秒後に現在のバージョンと更新確認の結果を表示します。</p>
 			<label class="row">
 				<input type="checkbox" bind:checked={cfg.autostart} />
 				ログイン時に自動で開始する
@@ -138,7 +148,18 @@
 	}
 	h1 {
 		font-size: 1.2rem;
-		margin: 0 0 1rem;
+		margin: 0;
+	}
+	header {
+		display: flex;
+		align-items: baseline;
+		justify-content: space-between;
+		gap: 0.75rem;
+		margin-bottom: 1rem;
+	}
+	.version {
+		color: #8595ad;
+		font-size: 0.8rem;
 	}
 	h2 {
 		font-size: 0.85rem;

@@ -1,6 +1,6 @@
 {
   "name": "rainbreak",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "雨やどり / Rainbreak — ポモドーロ型タイマー × 窓ガラスを流れる雨のアンビエント表現。",
   "license": "MIT",
   "private": true,

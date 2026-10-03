@@ -11,6 +11,14 @@ use crate::{commands, glue, updater};
 
 /// トレイを構築する。setup から一度だけ呼ぶ。
 pub fn build(app: &AppHandle) -> tauri::Result<()> {
+    let version = MenuItem::with_id(
+        app,
+        "version",
+        format!("雨やどり v{}", app.package_info().version),
+        false,
+        None::<&str>,
+    )?;
+    let version_sep = PredefinedMenuItem::separator(app)?;
     let toggle = MenuItem::with_id(app, "toggle", "一時停止 / 再開", true, None::<&str>)?;
     let skip = MenuItem::with_id(app, "skip", "Skip（作業へ戻る）", true, None::<&str>)?;
     let settings = MenuItem::with_id(app, "settings", "設定…", true, None::<&str>)?;
@@ -25,7 +33,16 @@ pub fn build(app: &AppHandle) -> tauri::Result<()> {
     let sep = PredefinedMenuItem::separator(app)?;
     let menu = Menu::with_items(
         app,
-        &[&toggle, &skip, &sep, &settings, &check_update, &quit],
+        &[
+            &version,
+            &version_sep,
+            &toggle,
+            &skip,
+            &sep,
+            &settings,
+            &check_update,
+            &quit,
+        ],
     )?;
 
     let mut builder = TrayIconBuilder::with_id("main")
@@ -67,7 +84,7 @@ pub fn update(app: &AppHandle, snap: &TimerSnapshot) {
             None if snap.paused => " — 一時停止",
             None => "",
         };
-        let text = format!("{text}{status}");
+        let text = format!("{text}{status} — v{}", app.package_info().version);
         let _ = tray.set_tooltip(Some(text));
     }
 }
