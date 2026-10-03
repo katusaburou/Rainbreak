@@ -69,8 +69,10 @@ const RULES = [
 	[/^(.+?)_(\d[^_]*)_aarch64\.dmg$/, (m) => `${m[1]}_${m[2]}_macOS_AppleSilicon.dmg`],
 	[/^(.+?)_(\d[^_]*)_x64\.dmg$/, (m) => `${m[1]}_${m[2]}_macOS_Intel.dmg`],
 	// macOS 自動アップデート用アーカイブ（.app.tar.gz 拡張子は updater の展開処理が前提とするため維持）
-	[/^(.+?)_aarch64\.app\.tar\.gz(\.sig)?$/, (m) => `${m[1]}_${version}_macOS_AppleSilicon_Update.app.tar.gz${m[2] ?? ''}`],
-	[/^(.+?)_x64\.app\.tar\.gz(\.sig)?$/, (m) => `${m[1]}_${version}_macOS_Intel_Update.app.tar.gz${m[2] ?? ''}`],
+	[/^(.+?)(?:_\d[^_]*)?_aarch64\.app\.tar\.gz(\.sig)?$/, (m) => `${m[1]}_${version}_macOS_AppleSilicon_Update.app.tar.gz${m[2] ?? ''}`],
+	[/^(.+?)(?:_\d[^_]*)?_x64\.app\.tar\.gz(\.sig)?$/, (m) => `${m[1]}_${version}_macOS_Intel_Update.app.tar.gz${m[2] ?? ''}`],
+	// 旧スクリプトで版番号が重複したアセットも、再実行で復旧できる。
+	[/^(.+?)(?:_\d[^_]*)+_macOS_(AppleSilicon|Intel)_Update\.app\.tar\.gz(\.sig)?$/, (m) => `${m[1]}_${version}_macOS_${m[2]}_Update.app.tar.gz${m[3] ?? ''}`],
 ];
 
 const renameOf = (name) => {
@@ -121,6 +123,17 @@ if (manifestAsset) {
 	const manifest = JSON.parse(await res.text());
 	let changed = false;
 	for (const entry of Object.values(manifest.platforms ?? {})) {
+		// tauri-action v1 は API のアセット URL を使う。公開配布 URL へ統一する。
+		const asset = release.assets.find((a) => a.url === entry.url || a.browser_download_url === entry.url);
+		if (asset) {
+			const to = renameOf(asset.name);
+			const url = `https://github.com/${repo}/releases/download/${tag}/${encodeURIComponent(to)}`;
+			if (entry.url !== url) {
+				entry.url = url;
+				changed = true;
+			}
+			continue;
+		}
 		const cut = entry.url.lastIndexOf('/') + 1;
 		const file = decodeURIComponent(entry.url.slice(cut));
 		// アセット側だけ直って中断した実行をやり直す場合にも追随できるよう、マップに無ければ規則から引く。

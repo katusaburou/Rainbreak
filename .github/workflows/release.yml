@@ -80,7 +80,7 @@ jobs:
           prerelease: false
           # 自動アップデートのマニフェスト latest.json を Release に同梱する。
           # matrix 各ジョブのプラットフォーム情報は同一 Release 上でマージされる。
-          includeUpdaterJson: true
+          uploadUpdaterJson: true
           args: ${{ matrix.target && format('--target {0}', matrix.target) || '' }}
 
   # Tauri 既定のアセット名（x64-setup / aarch64 など）はどの OS 向けか分かりにくいため、
