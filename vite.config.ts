@@ -8,7 +8,9 @@ export default defineConfig({
 	clearScreen: false,
 	server: {
 		port: 5173,
-		strictPort: true
+		strictPort: true,
+		// Rust の生成物を監視すると Windows のビルド中に EBUSY で停止する。
+		watch: { ignored: ['**/src-tauri/**', '**/target/**', '**/build/**'] }
 	},
 	// `TAURI_` 系の環境変数をフロントへ露出。
 	envPrefix: ['VITE_', 'TAURI_']

@@ -3,6 +3,8 @@
 	// 開発時の手動確認用に各ルートへのリンクだけ置く。
 	const routes = [
 		{ href: '/overlay', label: 'overlay（全画面・雨）' },
+		{ href: '/overlay?phase=shower&ambience=autumn&mode=dark', label: '紅葉（ダークモード）' },
+		{ href: '/overlay?phase=shower&ambience=autumn&mode=light', label: '紅葉（ホワイトモード）' },
 		{ href: '/hud', label: 'hud（隅のバー）' },
 		{ href: '/settings', label: 'settings（設定）' }
 	];

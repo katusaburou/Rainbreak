@@ -8,8 +8,31 @@ use std::fs;
 use std::path::PathBuf;
 use tauri::{AppHandle, Manager};
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Ambience {
+    Autumn,
+    #[default]
+    #[serde(other)]
+    Rain,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ColorMode {
+    Light,
+    #[default]
+    #[serde(other)]
+    Dark,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
+    /// 旧設定は通り雨を維持する。
+    #[serde(default)]
+    pub ambience: Ambience,
+    #[serde(default)]
+    pub color_mode: ColorMode,
     pub work_min: u32,
     pub break_min: u32,
     /// 0.0..=1.0
@@ -34,6 +57,8 @@ fn default_hud_opacity() -> f32 {
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
+            ambience: Ambience::Rain,
+            color_mode: ColorMode::Dark,
             work_min: 20,
             break_min: 5,
             volume: 0.6,
@@ -143,7 +168,7 @@ pub fn save_ui_state(app: &AppHandle, state: UiState) {
 
 #[cfg(test)]
 mod tests {
-    use super::AppConfig;
+    use super::{Ambience, AppConfig, ColorMode};
 
     #[test]
     fn auto_pause_is_off_by_default() {
@@ -157,6 +182,8 @@ mod tests {
         )
         .unwrap();
         assert!(!cfg.auto_pause);
+        assert_eq!(cfg.ambience, Ambience::Rain);
+        assert_eq!(cfg.color_mode, ColorMode::Dark);
         assert_eq!((cfg.work_min, cfg.break_min), (35, 7));
         assert!(cfg.muted);
     }
@@ -181,5 +208,56 @@ mod tests {
         let saved = serde_json::to_string(&cfg).unwrap();
         let loaded: AppConfig = serde_json::from_str(&saved).unwrap();
         assert!(loaded.sanitized().auto_pause);
+    }
+
+    #[test]
+    fn autumn_survives_serialization_and_sanitizing() {
+        let cfg = AppConfig {
+            ambience: Ambience::Autumn,
+            ..AppConfig::default()
+        };
+        let saved = serde_json::to_value(&cfg).unwrap();
+        assert_eq!(saved["ambience"], "autumn");
+        let loaded: AppConfig = serde_json::from_value(saved).unwrap();
+        assert_eq!(loaded.sanitized().ambience, Ambience::Autumn);
+    }
+
+    #[test]
+    fn unknown_ambience_preserves_other_settings() {
+        let cfg: AppConfig = serde_json::from_str(
+            r#"{"ambience":"future","work_min":35,"break_min":7,"volume":0.4,"muted":true,"autostart":false}"#,
+        )
+        .unwrap();
+        assert_eq!(cfg.ambience, Ambience::Rain);
+        assert_eq!((cfg.work_min, cfg.break_min), (35, 7));
+        assert!(cfg.muted);
+    }
+
+    #[test]
+    fn both_color_modes_survive_serialization_with_autumn_selected() {
+        for (mode, name) in [(ColorMode::Dark, "dark"), (ColorMode::Light, "light")] {
+            let cfg = AppConfig {
+                ambience: Ambience::Autumn,
+                color_mode: mode,
+                ..AppConfig::default()
+            };
+            let saved = serde_json::to_value(&cfg).unwrap();
+            assert_eq!(saved["color_mode"], name);
+            let loaded: AppConfig = serde_json::from_value(saved).unwrap();
+            let loaded = loaded.sanitized();
+            assert_eq!(loaded.color_mode, mode);
+            assert_eq!(loaded.ambience, Ambience::Autumn);
+        }
+    }
+
+    #[test]
+    fn unknown_color_mode_preserves_autumn_and_timer_settings() {
+        let cfg: AppConfig = serde_json::from_str(
+            r#"{"ambience":"autumn","color_mode":"future","work_min":35,"break_min":7,"volume":0.4,"muted":true,"autostart":false}"#,
+        )
+        .unwrap();
+        assert_eq!(cfg.color_mode, ColorMode::Dark);
+        assert_eq!(cfg.ambience, Ambience::Autumn);
+        assert_eq!((cfg.work_min, cfg.break_min), (35, 7));
     }
 }

@@ -7,7 +7,7 @@ use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Manager};
 
-use crate::{commands, glue, updater};
+use crate::{commands, glue, state::AppState, updater};
 
 /// トレイを構築する。setup から一度だけ呼ぶ。
 pub fn build(app: &AppHandle) -> tauri::Result<()> {
@@ -68,13 +68,14 @@ pub fn build(app: &AppHandle) -> tauri::Result<()> {
 /// トレイのツールチップにフェーズと残り時間を反映する。
 pub fn update(app: &AppHandle, snap: &TimerSnapshot) {
     if let Some(tray) = app.tray_by_id("main") {
+        let ambience = app.state::<AppState>().config.lock().unwrap().ambience;
         // セット終了はタイマーが止まっているので残り時間を出さない。
         let text = if snap.phase == Phase::Finished {
-            format!("雨やどり — {}", glue::phase_label(snap.phase))
+            format!("雨やどり — {}", glue::phase_label(snap.phase, ambience))
         } else {
             format!(
                 "雨やどり — {} {}",
-                glue::phase_label(snap.phase),
+                glue::phase_label(snap.phase, ambience),
                 glue::fmt_mmss(snap.remaining_secs)
             )
         };
