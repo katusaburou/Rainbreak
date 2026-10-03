@@ -22,7 +22,7 @@ pub fn spawn_startup_check(app: &AppHandle) {
     });
 }
 
-/// 更新チェックを非同期に開始する。起動時も現在バージョンと確認結果を知らせる。
+/// 更新チェックを非同期に開始する。最新版の通知は手動チェック時のみ表示する。
 pub fn check(app: &AppHandle, manual: bool) {
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
@@ -36,20 +36,17 @@ pub fn check(app: &AppHandle, manual: bool) {
         };
         match result {
             Ok(Some(update)) => prompt_and_install(app, update),
-            Ok(None) => {
+            Ok(None) if manual => {
                 app.dialog()
                     .message(format!(
                         "雨やどり v{}\n最新のバージョンを使用しています。",
                         app.package_info().version
                     ))
-                    .title(if manual {
-                        "バージョン確認"
-                    } else {
-                        "起動時のバージョン確認"
-                    })
+                    .title("バージョン確認")
                     .kind(MessageDialogKind::Info)
                     .show(|_| {});
             }
+            Ok(None) => {}
             Err(e) => {
                 app.dialog()
                     .message(format!(

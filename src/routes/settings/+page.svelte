@@ -109,7 +109,7 @@
 
 		<section>
 			<h2>起動</h2>
-			<p class="hint">起動約10秒後に現在のバージョンと更新確認の結果を表示します。</p>
+			<p class="hint">起動約10秒後に更新を自動確認します。最新のバージョンを使用している場合は通知しません。</p>
 			<label class="row">
 				<input type="checkbox" bind:checked={cfg.autostart} />
 				ログイン時に自動で開始する
