@@ -10,7 +10,7 @@ use rainbreak_core::{Phase, TimerSnapshot};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
 
-use crate::{shortcuts, state::AppState, tray, windows};
+use crate::{config::Ambience, shortcuts, state::AppState, tray, windows};
 
 #[derive(Clone, Serialize)]
 struct PhasePayload {
@@ -77,9 +77,12 @@ pub fn broadcast(app: &AppHandle, snap: &TimerSnapshot, seg_total: u32) {
 }
 
 /// フェーズ名（日本語）。トレイ表示用。
-pub fn phase_label(phase: Phase) -> &'static str {
+pub fn phase_label(phase: Phase, ambience: Ambience) -> &'static str {
     match phase {
         Phase::Work => "作業",
+        Phase::Incoming if ambience == Ambience::Autumn => "まもなく紅葉のひと休み",
+        Phase::Shower if ambience == Ambience::Autumn => "紅葉（休憩）",
+        Phase::Clearing if ambience == Ambience::Autumn => "秋の余韻",
         Phase::Incoming => "まもなく通り雨",
         Phase::Shower => "通り雨（休憩）",
         Phase::Clearing => "雨上がり",

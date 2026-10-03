@@ -4,6 +4,9 @@
 /** 4 フェーズ ＋ 終端のセット終了。Rust の `Phase::as_str()` と一致。 */
 export type Phase = 'work' | 'incoming' | 'shower' | 'clearing' | 'finished';
 
+export type Ambience = 'rain' | 'autumn';
+export type ColorMode = 'dark' | 'light';
+
 /** `phase-changed` イベント。フェーズ遷移時に各窓が見た目を切り替える。 */
 export interface PhaseChanged {
 	phase: Phase;
@@ -30,6 +33,8 @@ export interface IncomingProgress {
 
 /** 永続化される設定（要件 §3.6：最小）。 */
 export interface AppConfig {
+	ambience: Ambience;
+	color_mode: ColorMode;
 	work_min: number;
 	break_min: number;
 	/** 0.0..=1.0 */
