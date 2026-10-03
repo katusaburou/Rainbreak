@@ -10,7 +10,7 @@ tauri-build = { version = "2.6.3", features = [] }
 
 [dependencies]
 # 透過ウィンドウ（macos-private-api）とトレイ（tray-icon）を使う。
-tauri = { version = "2.11.3", features = ["tray-icon", "macos-private-api"] }
+tauri = { version = "2.12.0", features = ["tray-icon", "macos-private-api"] }
 tauri-plugin-autostart = "2.5.1"
 tauri-plugin-global-shortcut = "2.3.2"
 # 自動アップデート（GitHub Releases の latest.json を参照）と確認ダイアログ。
