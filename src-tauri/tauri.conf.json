@@ -92,7 +92,7 @@
 	},
 	"plugins": {
 		"updater": {
-			"pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEZEMkI4ODA3RjE5MTlCNDkKUldSSm01SHhCNGdyL2JwNjFKTmJGVFpCZ0RMenhlM2NYTCtoK3RZT3BvMWVUOG8zRHJ4Y0lXekMK",
+			"pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDE2NzVGOTdGQjJEMDEzQzUKUldURkU5Q3lmL2wxRm5ERmtXMWF5UkYwQ3VqZmtXczcycytqYW1iSko1WEFYK3N5N3RjLzh1S2kK",
 			"endpoints": [
 				"https://github.com/katusaburou/rainbreak/releases/latest/download/latest.json"
 			],
