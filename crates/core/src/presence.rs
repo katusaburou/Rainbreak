@@ -38,7 +38,8 @@ pub(crate) fn pause_reason(
     }
     match presence.idle_secs {
         Some(secs) if secs >= IDLE_PAUSE_SECS => Some(AutoPauseReason::Idle),
-        None if previous == Some(AutoPauseReason::Idle) => previous,
+        // ロック解除直後に入力経過だけ取得できない場合も、離席判定を飛ばして再開しない。
+        None if previous.is_some() => previous,
         _ => None,
     }
 }

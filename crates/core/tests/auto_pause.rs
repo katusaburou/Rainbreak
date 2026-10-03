@@ -169,3 +169,21 @@ fn unlock_without_activity_keeps_work_paused_for_idle() {
     timer.update_presence(true, active());
     assert!(!timer.paused());
 }
+
+#[test]
+fn unlock_with_unknown_idle_keeps_work_paused() {
+    let mut timer = Timer::new(CycleConfig::default());
+    timer.update_presence(true, locked());
+    timer.update_presence(
+        true,
+        Presence {
+            idle_secs: None,
+            locked: Some(false),
+        },
+    );
+    assert!(timer.paused());
+    let remaining = timer.remaining_secs();
+    assert_eq!(timer.tick().remaining_secs, remaining);
+    timer.update_presence(true, active());
+    assert!(!timer.paused());
+}
