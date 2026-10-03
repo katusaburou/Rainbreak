@@ -9,7 +9,8 @@
 		muted: false,
 		autostart: false,
 		hud_opacity: 1,
-		sets: 0
+		sets: 0,
+		auto_pause: false
 	});
 	let loaded = $state(false);
 	let saving = $state(false);
@@ -103,6 +104,15 @@
 				<input type="checkbox" bind:checked={cfg.autostart} />
 				ログイン時に自動で開始する
 			</label>
+		</section>
+
+		<section>
+			<h2>自動停止</h2>
+			<label class="row">
+				<input type="checkbox" bind:checked={cfg.auto_pause} />
+				離席・画面ロック時にタイマーを止める
+			</label>
+			<p class="hint">作業中に5分間入力がないと停止し、操作すると再開します。画面ロック時は休憩中も停止します。手動の一時停止は保持します。</p>
 		</section>
 
 		<div class="actions">

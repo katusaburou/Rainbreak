@@ -70,6 +70,8 @@ jobs:
       - run: pnpm tauri icon app-icon.png
       - run: pnpm run build
       - run: cargo build --manifest-path src-tauri/Cargo.toml
+      # 実ディスプレイが必要なキャプチャ疎通以外のシェル単体テスト。
+      - run: cargo test --locked --manifest-path src-tauri/Cargo.toml -- --skip commands::tests::capture_returns_jpeg_data_url
 
   # 依存の既知脆弱性チェック（Rust: RustSec / フロント: pnpm audit）。
   # フロントは配布物が静的ビルド済みアセットのため、本番に同梱される依存だけを

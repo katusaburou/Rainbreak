@@ -22,6 +22,9 @@ pub struct AppConfig {
     /// セット数（作業サイクルの回数）。0 = 無制限（旧設定ファイルには無いので default で補う）。
     #[serde(default)]
     pub sets: u32,
+    /// 5分間の入力停止（作業中のみ）・画面ロック時に自動停止する。
+    #[serde(default)]
+    pub auto_pause: bool,
 }
 
 fn default_hud_opacity() -> f32 {
@@ -38,6 +41,7 @@ impl Default for AppConfig {
             autostart: false,
             hud_opacity: default_hud_opacity(),
             sets: 0,
+            auto_pause: false,
         }
     }
 }
@@ -134,5 +138,48 @@ pub fn save_ui_state(app: &AppHandle, state: UiState) {
     }
     if let Ok(text) = serde_json::to_string_pretty(&state) {
         let _ = fs::write(&path, text);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::AppConfig;
+
+    #[test]
+    fn auto_pause_is_off_by_default() {
+        assert!(!AppConfig::default().auto_pause);
+    }
+
+    #[test]
+    fn old_config_keeps_auto_pause_off_without_losing_existing_settings() {
+        let cfg: AppConfig = serde_json::from_str(
+            r#"{"work_min":35,"break_min":7,"volume":0.4,"muted":true,"autostart":false}"#,
+        )
+        .unwrap();
+        assert!(!cfg.auto_pause);
+        assert_eq!((cfg.work_min, cfg.break_min), (35, 7));
+        assert!(cfg.muted);
+    }
+
+    #[test]
+    fn disabling_auto_pause_survives_serialization_and_sanitizing() {
+        let cfg = AppConfig {
+            auto_pause: false,
+            ..AppConfig::default()
+        };
+        let saved = serde_json::to_string(&cfg).unwrap();
+        let loaded: AppConfig = serde_json::from_str(&saved).unwrap();
+        assert!(!loaded.sanitized().auto_pause);
+    }
+
+    #[test]
+    fn explicitly_enabled_auto_pause_survives_serialization_and_sanitizing() {
+        let cfg = AppConfig {
+            auto_pause: true,
+            ..AppConfig::default()
+        };
+        let saved = serde_json::to_string(&cfg).unwrap();
+        let loaded: AppConfig = serde_json::from_str(&saved).unwrap();
+        assert!(loaded.sanitized().auto_pause);
     }
 }

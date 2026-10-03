@@ -120,6 +120,16 @@ pub fn apply_phase(app: &AppHandle, snap: &TimerSnapshot) {
     let overlay = app.get_webview_window("overlay");
     let hud = app.get_webview_window("hud");
 
+    if snap.auto_pause_reason.is_some() {
+        if let Some(o) = &overlay {
+            let _ = o.hide();
+        }
+        if let Some(h) = &hud {
+            let _ = h.hide();
+        }
+        return;
+    }
+
     match snap.phase {
         // 作業・セット終了: overlay 退避、HUD のみ表示。他アプリ操作を一切妨げない。
         Phase::Work | Phase::Finished => {

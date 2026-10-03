@@ -2,7 +2,7 @@
 //!
 //! 常駐アイコンにフェーズ・残り時間を出し、開始/一時停止/Skip/設定/終了を提供する。
 
-use rainbreak_core::Phase;
+use rainbreak_core::{AutoPauseReason, Phase, TimerSnapshot};
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Manager};
@@ -49,18 +49,25 @@ pub fn build(app: &AppHandle) -> tauri::Result<()> {
 }
 
 /// トレイのツールチップにフェーズと残り時間を反映する。
-pub fn update(app: &AppHandle, phase: Phase, remaining: u32) {
+pub fn update(app: &AppHandle, snap: &TimerSnapshot) {
     if let Some(tray) = app.tray_by_id("main") {
         // セット終了はタイマーが止まっているので残り時間を出さない。
-        let text = if phase == Phase::Finished {
-            format!("雨やどり — {}", glue::phase_label(phase))
+        let text = if snap.phase == Phase::Finished {
+            format!("雨やどり — {}", glue::phase_label(snap.phase))
         } else {
             format!(
                 "雨やどり — {} {}",
-                glue::phase_label(phase),
-                glue::fmt_mmss(remaining)
+                glue::phase_label(snap.phase),
+                glue::fmt_mmss(snap.remaining_secs)
             )
         };
+        let status = match snap.auto_pause_reason {
+            Some(AutoPauseReason::Idle) => " — 自動停止（離席）",
+            Some(AutoPauseReason::Locked) => " — 自動停止（画面ロック）",
+            None if snap.paused => " — 一時停止",
+            None => "",
+        };
+        let text = format!("{text}{status}");
         let _ = tray.set_tooltip(Some(text));
     }
 }

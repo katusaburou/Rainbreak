@@ -39,6 +39,17 @@ objc2-app-kit = { version = "0.3.2", default-features = false, features = [
     "NSWindow",
 ] }
 
+# Windows: セッション単位の入力経過時間・画面ロック状態の読み取り。
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61.2", features = [
+    "Win32_System_RemoteDesktop",
+    "Win32_System_SystemInformation",
+    "Win32_UI_Input_KeyboardAndMouse",
+] }
+
+[dev-dependencies]
+tokio = { version = "1.52.3", features = ["test-util"] }
+
 [features]
 # 既定。Tauri テンプレート互換のためのプレースホルダ。
 custom-protocol = ["tauri/custom-protocol"]

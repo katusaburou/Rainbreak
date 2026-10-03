@@ -4,8 +4,8 @@ use rainbreak_core::CycleConfig;
 use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::config::{self, AppConfig};
-use crate::glue;
 use crate::state::AppState;
+use crate::{glue, presence};
 
 /// 現在状態（フェーズ遷移なし）を即時配信する。pause/resume/config 更新後に使う。
 fn broadcast_current(app: &AppHandle) {
@@ -32,7 +32,7 @@ pub fn toggle_pause(app: &AppHandle) {
     {
         let state = app.state::<AppState>();
         let mut timer = state.timer.lock().unwrap();
-        let paused = timer.paused();
+        let paused = timer.manually_paused();
         timer.set_paused(!paused);
     }
     broadcast_current(app);
@@ -70,11 +70,14 @@ pub fn get_config(state: State<AppState>) -> AppConfig {
 pub fn update_config(app: AppHandle, cfg: AppConfig) {
     let cfg = cfg.sanitized();
     config::save(&app, &cfg);
+    let observation = presence::sample();
     {
         let state = app.state::<AppState>();
-        state.timer.lock().unwrap().update_config(
+        let mut timer = state.timer.lock().unwrap();
+        timer.update_config(
             CycleConfig::from_minutes(cfg.work_min, cfg.break_min).with_sets(cfg.sets),
         );
+        timer.update_presence(cfg.auto_pause, observation);
         *state.config.lock().unwrap() = cfg.clone();
     }
     apply_autostart(&app, cfg.autostart);

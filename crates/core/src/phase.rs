@@ -94,6 +94,8 @@ pub struct TimerSnapshot {
     pub cycle: u32,
     /// 一時停止中か。
     pub paused: bool,
+    /// 手動停止とは独立した自動停止理由。
+    pub auto_pause_reason: Option<crate::AutoPauseReason>,
     /// この tick でフェーズが変化したか（ウィンドウ属性の切替トリガ）。
     pub phase_changed: bool,
     /// 予兆フェーズの進捗 `0.0..=1.0`（雨を 0→強へ漸増させる用）。
@@ -107,7 +109,7 @@ pub struct TimerSnapshot {
 /// タイマー状態機械。`tick()` を 1 秒ごとに呼んで駆動する。
 ///
 /// 内部状態は外から直接触らせず、`tick` / `skip` / `update_config` /
-/// `set_paused` 経由でのみ遷移させる。
+/// `set_paused` / `update_presence` 経由でのみ遷移させる。
 #[derive(Debug, Clone)]
 pub struct Timer {
     phase: Phase,
@@ -115,6 +117,7 @@ pub struct Timer {
     remaining: u32,
     cycle: u32,
     paused: bool,
+    auto_pause_reason: Option<crate::AutoPauseReason>,
     cfg: CycleConfig,
 }
 
@@ -126,13 +129,14 @@ impl Timer {
             remaining: cfg.work_secs,
             cycle: 1,
             paused: false,
+            auto_pause_reason: None,
             cfg,
         }
     }
 
     /// 1 秒進める。一時停止中は時間を減らさず、状態も変えない。
     pub fn tick(&mut self) -> TimerSnapshot {
-        if self.paused {
+        if self.paused() {
             return self.snapshot(false);
         }
         if self.remaining > 0 {
@@ -206,9 +210,19 @@ impl Timer {
         self.snapshot(true)
     }
 
-    /// 一時停止 / 再開。
+    /// 手動で一時停止 / 再開する。自動停止の理由は変更しない。
     pub fn set_paused(&mut self, paused: bool) {
         self.paused = paused;
+    }
+
+    /// 手動停止はそのまま保持し、OS の観測結果だけで自動停止を更新する。
+    pub fn update_presence(&mut self, enabled: bool, presence: crate::Presence) {
+        self.auto_pause_reason =
+            crate::presence::pause_reason(enabled, self.phase, presence, self.auto_pause_reason);
+    }
+
+    pub fn manually_paused(&self) -> bool {
+        self.paused
     }
 
     /// サイクル長を更新する。現在セグメントの残りが新しい総量を超える場合は
@@ -284,7 +298,8 @@ impl Timer {
             phase: self.phase,
             remaining_secs: self.remaining,
             cycle: self.cycle,
-            paused: self.paused,
+            paused: self.paused(),
+            auto_pause_reason: self.auto_pause_reason,
             phase_changed,
             incoming_progress,
             last_set: self.is_last_set(),
@@ -303,7 +318,7 @@ impl Timer {
         self.cycle
     }
     pub fn paused(&self) -> bool {
-        self.paused
+        self.paused || self.auto_pause_reason.is_some()
     }
     pub fn config(&self) -> CycleConfig {
         self.cfg

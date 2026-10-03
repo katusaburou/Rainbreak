@@ -11,6 +11,8 @@ export interface PhaseChanged {
 	cycle: number;
 	/** 最終セットか（雨上がり clearing で虹と余韻を出す判定に使う）。 */
 	last_set: boolean;
+	/** 自動停止中はフェーズを保持し、雨・音を止める。 */
+	auto_paused: boolean;
 }
 
 /** `tick` イベント。毎秒。HUD バーの充填率・トレイ残り時間に使う。 */
@@ -38,4 +40,6 @@ export interface AppConfig {
 	hud_opacity: number;
 	/** セット数（作業サイクルの回数）。0 = 無制限。 */
 	sets: number;
+	/** 作業中に5分間入力がない場合、および画面ロック時に自動停止。 */
+	auto_pause: boolean;
 }

@@ -10,8 +10,10 @@
 //! WebView へ emit する。
 
 mod phase;
+mod presence;
 
 pub use phase::{
     CycleConfig, Phase, Timer, TimerSnapshot, CLEARING_SECS, FINAL_CLEARING_SECS,
     INCOMING_LEAD_SECS,
 };
+pub use presence::{AutoPauseReason, Presence, IDLE_PAUSE_SECS};
