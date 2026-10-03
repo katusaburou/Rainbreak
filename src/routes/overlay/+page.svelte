@@ -17,11 +17,13 @@
 
 	let canvas: HTMLCanvasElement;
 	let phase = $state<Phase>('work');
+	let autoPaused = $state(false);
 	// 雨が描けない劣化モード（WebGL2 なし / reduced-motion / 初期化失敗）。
 	// canvas に CSS の静的ベールを出して「通り雨中」を可視化する。
 	let degraded = $state(false);
 	// 最終セットの雨上がりに架かる虹（案1）。表示中だけ DOM に置く。
 	let rainbow = $state(false);
+	let rainbowElapsed = $state(0);
 	let rain: RainRenderer | null = null;
 	let audio: RainAudio | null = null;
 	let clearingTimer: ReturnType<typeof setInterval> | null = null;
@@ -29,6 +31,7 @@
 
 	const CLEARING_SECS = 3; // Rust の CLEARING_SECS と一致
 	const FINAL_CLEARING_SECS = 10; // Rust の FINAL_CLEARING_SECS と一致（虹のタイムライン）
+	const INCOMING_LEAD_SECS = 30; // Rust の INCOMING_LEAD_SECS と一致
 
 	// 予兆（休憩 30 秒前〜）のガラス不透明度の上限。1 未満に抑えることで、
 	// クリックスルーと合わせて背後のライブ画面が読める＝作業を続けられる。
@@ -84,13 +87,20 @@
 		}
 	}
 
-	function applyPhase(next: Phase, lastSet = false) {
+	function applyPhase(next: Phase, lastSet = false, remainingSecs?: number, pausedAutomatically = false) {
 		phase = next;
+		autoPaused = pausedAutomatically;
 		if (!rain) return;
 		stopClearingTween();
 		// 虹と余韻は雨上がり（最終セット）限定。他フェーズへ移ったら引っ込める。
 		rainbow = false;
 		audio?.cancelAfterglow();
+		if (autoPaused) {
+			stopCaptureLoop();
+			rain.stop();
+			audio?.fadeOut(0.2);
+			return;
+		}
 		switch (next) {
 			case 'work':
 			// セット終了は今のところ作業と同じ退避のみ（終了演出はここに差し込む）。
@@ -106,7 +116,8 @@
 				// （クリックスルー ON と合わせて、降り始めの 30 秒は作業を続けられる）。
 				rain.setMaxOpacity(INCOMING_MAX_OPACITY);
 				startCaptureLoop();
-				rain.setIntensity(0);
+				rain.setIntensity(Math.max(0, Math.min(1,
+					(INCOMING_LEAD_SECS - (remainingSecs ?? INCOMING_LEAD_SECS)) / INCOMING_LEAD_SECS)));
 				rain.start();
 				break;
 			case 'shower':
@@ -116,7 +127,9 @@
 				startCaptureLoop();
 				rain.setIntensity(1);
 				rain.start();
-				void audio?.resume().then(() => audio?.fadeIn(2));
+				void audio?.resume().then(() => {
+					if (phase === 'shower' && !autoPaused) audio?.fadeIn(2);
+				});
 				break;
 			case 'clearing': {
 				// 雨・音を CLEARING_SECS かけてフェードアウト。背景は最後の像で固定。
@@ -124,11 +137,14 @@
 				rain.setMaxOpacity(1);
 				rain.start();
 				audio?.fadeOut(CLEARING_SECS);
-				const from = rain.getIntensity() || 1;
-				const start = performance.now();
+				// 自動停止からの復帰でも Rust の残り秒から演出位置を再現する。
+				const total = lastSet ? FINAL_CLEARING_SECS : CLEARING_SECS;
+				const elapsed = remainingSecs === undefined ? 0 : Math.max(0, total - remainingSecs);
+				const start = performance.now() - elapsed * 1000;
+				rain.setIntensity(Math.max(0, 1 - elapsed / CLEARING_SECS));
 				clearingTimer = setInterval(() => {
 					const t = (performance.now() - start) / (CLEARING_SECS * 1000);
-					const v = Math.max(0, from * (1 - t));
+					const v = Math.max(0, 1 - t);
 					rain?.setIntensity(v);
 					if (t >= 1) {
 						stopClearingTween();
@@ -139,7 +155,8 @@
 				// 虹を架け（案1）、雫と遠くの鳥の余韻を鳴らす（案3）。
 				if (lastSet) {
 					rainbow = true;
-					audio?.playAfterglow(CLEARING_SECS);
+					rainbowElapsed = elapsed;
+					audio?.playAfterglow(Math.max(0, CLEARING_SECS - elapsed));
 				}
 				break;
 			}
@@ -148,7 +165,7 @@
 
 	function onKeydown(e: KeyboardEvent) {
 		// 通り雨／予兆は Esc で切り上げ（Rust 側のグローバルショートカットと二重化）。
-		if (e.key === 'Escape' && (phase === 'shower' || phase === 'incoming')) {
+		if (!autoPaused && e.key === 'Escape' && (phase === 'shower' || phase === 'incoming')) {
 			void skipBreak();
 		}
 	}
@@ -170,7 +187,7 @@
 		}
 
 		try {
-			unlisten.push(await onPhaseChanged((p) => applyPhase(p.phase, p.last_set)));
+			unlisten.push(await onPhaseChanged((p) => applyPhase(p.phase, p.last_set, p.remaining_secs, p.auto_paused)));
 			unlisten.push(
 				await onIncomingProgress((p) => {
 					if (phase === 'incoming') rain?.setIntensity(p.p);
@@ -215,14 +232,14 @@
 	});
 </script>
 
-<div class="overlay">
+<div class="overlay" class:auto-paused={autoPaused}>
 	<canvas bind:this={canvas} class:degraded></canvas>
 
 	{#if rainbow}
-		<div class="rainbow" style:animation-duration={`${FINAL_CLEARING_SECS}s`}></div>
+		<div class="rainbow" style:animation-duration={`${FINAL_CLEARING_SECS}s`} style:animation-delay={`${-rainbowElapsed}s`}></div>
 	{/if}
 
-	{#if phase === 'shower'}
+	{#if phase === 'shower' && !autoPaused}
 		<div class="escape">
 			<button onclick={() => skipBreak()}>この通り雨をやり過ごす（Skip）</button>
 			<p class="hint">Esc でも作業に戻れます</p>
@@ -231,6 +248,9 @@
 </div>
 
 <style>
+	.overlay.auto-paused {
+		visibility: hidden;
+	}
 	:global(html, body) {
 		margin: 0;
 		padding: 0;

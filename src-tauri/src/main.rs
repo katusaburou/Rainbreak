@@ -6,6 +6,7 @@ mod config;
 mod glue;
 #[cfg(target_os = "macos")]
 mod macos;
+mod presence;
 mod scheduler;
 mod shortcuts;
 mod state;
@@ -13,7 +14,7 @@ mod tray;
 mod updater;
 mod windows;
 
-use std::sync::Mutex;
+use std::sync::{atomic::AtomicBool, Mutex};
 
 use rainbreak_core::{CycleConfig, Phase, Timer};
 use tauri::Manager;
@@ -49,8 +50,10 @@ fn main() {
                     tauri::async_runtime::spawn(async move {
                         // 作業中・セット終了中は Esc を奪わない（shortcuts::sync が解除しているが二重防御）。
                         let state = app.state::<AppState>();
-                        let phase = { state.timer.lock().unwrap().phase() };
-                        if !matches!(phase, Phase::Work | Phase::Finished) {
+                        let snap = { state.timer.lock().unwrap().current() };
+                        if snap.auto_pause_reason.is_none()
+                            && !matches!(snap.phase, Phase::Work | Phase::Finished)
+                        {
                             commands::do_skip(&app);
                         }
                     });
@@ -89,6 +92,7 @@ fn main() {
             app.manage(AppState {
                 timer: Mutex::new(timer),
                 config: Mutex::new(cfg.clone()),
+                auto_pause_rendered: AtomicBool::new(false),
             });
 
             windows::init(handle);

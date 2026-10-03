@@ -19,6 +19,7 @@ export class RainAudio {
 	private volume = 0.6;
 	private muted = false;
 	private started = false;
+	private stopTimer: number | null = null;
 
 	/** AudioContext を生成（ユーザー操作後に呼ぶのが安全）。 */
 	private ensureContext(): AudioContext {
@@ -65,6 +66,8 @@ export class RainAudio {
 
 	/** 雨音を起動し、`duration` 秒かけてフェードイン。 */
 	fadeIn(duration = 2): void {
+		if (this.stopTimer) clearTimeout(this.stopTimer);
+		this.stopTimer = null;
 		const ctx = this.ensureContext();
 		if (!this.started) {
 			this.source = this.buildNoiseSource(ctx);
@@ -84,8 +87,10 @@ export class RainAudio {
 		if (!this.ctx || !this.rainGain) return;
 		this.rampGain(this.rainGain, 0, duration);
 		const src = this.source;
-		window.setTimeout(
+		if (this.stopTimer) clearTimeout(this.stopTimer);
+		this.stopTimer = window.setTimeout(
 			() => {
+				this.stopTimer = null;
 				try {
 					src?.stop();
 				} catch {
@@ -217,6 +222,8 @@ export class RainAudio {
 	}
 
 	destroy(): void {
+		if (this.stopTimer) clearTimeout(this.stopTimer);
+		this.stopTimer = null;
 		this.cancelAfterglow();
 		try {
 			this.source?.stop();

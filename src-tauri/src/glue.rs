@@ -4,11 +4,13 @@
 //! スケジューラ（毎秒の tick）と各コマンド（skip/pause 等）の双方がここを
 //! 通すことで、フェーズ遷移時の副作用が一貫する。
 
+use std::sync::atomic::Ordering;
+
 use rainbreak_core::{Phase, TimerSnapshot};
 use serde::Serialize;
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 
-use crate::{shortcuts, tray, windows};
+use crate::{shortcuts, state::AppState, tray, windows};
 
 #[derive(Clone, Serialize)]
 struct PhasePayload {
@@ -17,6 +19,8 @@ struct PhasePayload {
     cycle: u32,
     /// 最終セットか（雨上がりで虹と余韻を出すかの判定に使う）。
     last_set: bool,
+    /// 自動停止中はフェーズを保持したまま演出を退避する。
+    auto_paused: bool,
 }
 
 #[derive(Clone, Serialize)]
@@ -47,7 +51,13 @@ pub fn broadcast(app: &AppHandle, snap: &TimerSnapshot, seg_total: u32) {
         let _ = app.emit("incoming-progress", IncomingPayload { p });
     }
 
-    if snap.phase_changed {
+    let auto_paused = snap.auto_pause_reason.is_some();
+    let pause_changed = app
+        .state::<AppState>()
+        .auto_pause_rendered
+        .swap(auto_paused, Ordering::Relaxed)
+        != auto_paused;
+    if snap.phase_changed || pause_changed {
         let _ = app.emit(
             "phase-changed",
             PhasePayload {
@@ -55,13 +65,15 @@ pub fn broadcast(app: &AppHandle, snap: &TimerSnapshot, seg_total: u32) {
                 remaining_secs: snap.remaining_secs,
                 cycle: snap.cycle,
                 last_set: snap.last_set,
+                auto_paused,
             },
         );
         windows::apply_phase(app, snap);
-        shortcuts::sync(app, snap.phase);
+        // 退避中は他アプリの Esc を奪わない。
+        shortcuts::sync(app, if auto_paused { Phase::Work } else { snap.phase });
     }
 
-    tray::update(app, snap.phase, snap.remaining_secs);
+    tray::update(app, snap);
 }
 
 /// フェーズ名（日本語）。トレイ表示用。
