@@ -4,9 +4,12 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { publicKeyPacket, verifyUpdaterSignature } from './updater-signature.mjs';
 
-const argOf = (name) => process.argv[process.argv.indexOf(name) + 1];
-const tag = process.argv.includes('--tag') ? argOf('--tag') : undefined;
-const repo = process.argv.includes('--repo') ? argOf('--repo') : process.env.GITHUB_REPOSITORY;
+const argOf = (name) => {
+	const i = process.argv.indexOf(name);
+	return i >= 0 ? process.argv[i + 1] : undefined;
+};
+const tag = argOf('--tag');
+const repo = argOf('--repo') ?? process.env.GITHUB_REPOSITORY;
 if (!tag || !repo) throw new Error('Usage: --tag v1.1.1 --repo owner/name');
 const token = process.env.GH_TOKEN ?? process.env.GITHUB_TOKEN
 	?? execFileSync('gh', ['auth', 'token'], { encoding: 'utf8' }).trim();
@@ -21,22 +24,24 @@ async function api(path, binary = false) {
 const config = JSON.parse(readFileSync(new URL('../src-tauri/tauri.conf.json', import.meta.url), 'utf8'));
 const version = tag.replace(/^v/, '');
 if (config.version !== version) throw new Error('Tag and app version differ');
-// 鍵を変えると既存アプリから更新できなくなるため、前回配布版とも照合する。
-const previous = await api('releases/latest');
-if (previous.tag_name !== tag) {
+const releases = [];
+for (let page = 1; page <= 10; page++) {
+	const batch = await api(`releases?per_page=100&page=${page}`);
+	releases.push(...batch);
+	if (batch.length < 100) break;
+}
+const release = releases.find((item) => item.tag_name === tag);
+if (!release) throw new Error(`Release ${tag} not found`);
+// 鍵を変えると既存アプリから更新できなくなるため、前回配布版（検証対象を除く最新の公開版）とも照合する。
+// 再実行時に自分自身と比較して素通りしないよう、対象タグは除外する。
+const previous = releases.find((item) => item.tag_name !== tag && !item.draft && !item.prerelease);
+if (previous) {
 	const previousFile = await api(`contents/src-tauri/tauri.conf.json?ref=${encodeURIComponent(previous.tag_name)}`);
 	const previousConfig = JSON.parse(Buffer.from(previousFile.content, 'base64').toString('utf8'));
 	if (!publicKeyPacket(previousConfig.plugins.updater.pubkey).equals(publicKeyPacket(config.plugins.updater.pubkey))) {
 		throw new Error('Updater public key differs from the previous release; existing apps cannot update');
 	}
 }
-let release;
-for (let page = 1; page <= 10 && !release; page++) {
-	const releases = await api(`releases?per_page=100&page=${page}`);
-	release = releases.find((item) => item.tag_name === tag);
-	if (!releases.length) break;
-}
-if (!release) throw new Error(`Release ${tag} not found`);
 const assetOf = (name) => {
 	const asset = release.assets.find((item) => item.name === name && item.size > 0);
 	if (!asset) throw new Error(`Missing release asset: ${name}`);
@@ -62,4 +67,6 @@ for (const [platform, name] of Object.entries(expected)) {
 	}
 	console.log(`${platform}: download URL and binary signature verified`);
 }
-console.log(`${tag}: updater compatibility with ${previous.tag_name} verified`);
+console.log(previous
+	? `${tag}: updater compatibility with ${previous.tag_name} verified`
+	: `${tag}: no previous release; signatures verified`);
