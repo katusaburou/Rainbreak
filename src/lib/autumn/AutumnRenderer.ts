@@ -29,6 +29,7 @@ export class AutumnRenderer {
 	private height = 1;
 	private intensity = 0;
 	private maxOpacity = 1;
+	private fadeMs = 250;
 	private running = false;
 	private frame: number | null = null;
 	private previousTime = 0;
@@ -56,7 +57,8 @@ export class AutumnRenderer {
 
 	setMaxOpacity(value: number, fadeMs = 250): void {
 		this.maxOpacity = Math.min(1, Math.max(0, value));
-		this.applyOpacity(fadeMs);
+		this.fadeMs = fadeMs;
+		this.applyOpacity();
 	}
 
 	start(): void {
@@ -120,9 +122,9 @@ export class AutumnRenderer {
 		};
 	}
 
-	private applyOpacity(fadeMs = 250): void {
+	private applyOpacity(): void {
 		if (!this.canvas) return;
-		this.canvas.style.transition = `opacity ${fadeMs}ms linear`;
+		this.canvas.style.transition = `opacity ${this.fadeMs}ms linear`;
 		this.canvas.style.opacity = String(Math.min(1, this.intensity / 0.3) * this.maxOpacity);
 	}
 

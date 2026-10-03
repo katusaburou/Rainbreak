@@ -148,3 +148,11 @@ test('reduced motion does not repaint on intensity changes while hidden', () => 
 	assert.equal(f.frames.size, 0);
 	f.renderer.destroy();
 });
+
+test('setIntensity keeps the fade duration requested by setMaxOpacity', () => {
+	const f = fixture(true);
+	f.renderer.setMaxOpacity(1, 1200);
+	f.renderer.setIntensity(1);
+	assert.equal(f.surface.style.transition, 'opacity 1200ms linear');
+	f.renderer.destroy();
+});
