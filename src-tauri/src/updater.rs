@@ -22,34 +22,43 @@ pub fn spawn_startup_check(app: &AppHandle) {
     });
 }
 
-/// 更新チェックを非同期に開始する。`manual` はトレイメニューからの手動確認で、
-/// そのときだけ「最新版です」やエラーもダイアログで知らせる（自動時は静かに無視）。
+/// 更新チェックを非同期に開始する。起動時も現在バージョンと確認結果を知らせる。
 pub fn check(app: &AppHandle, manual: bool) {
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
-        let result = match app.updater() {
+        let result = match app
+            .updater_builder()
+            .timeout(Duration::from_secs(30))
+            .build()
+        {
             Ok(updater) => updater.check().await,
             Err(e) => Err(e),
         };
         match result {
             Ok(Some(update)) => prompt_and_install(app, update),
             Ok(None) => {
-                if manual {
-                    app.dialog()
-                        .message("お使いの雨やどりは最新版です。")
-                        .title("雨やどり")
-                        .kind(MessageDialogKind::Info)
-                        .show(|_| {});
-                }
+                app.dialog()
+                    .message(format!(
+                        "雨やどり v{}\n最新のバージョンを使用しています。",
+                        app.package_info().version
+                    ))
+                    .title(if manual {
+                        "バージョン確認"
+                    } else {
+                        "起動時のバージョン確認"
+                    })
+                    .kind(MessageDialogKind::Info)
+                    .show(|_| {});
             }
             Err(e) => {
-                if manual {
-                    app.dialog()
-                        .message(format!("アップデートの確認に失敗しました。\n{e}"))
-                        .title("雨やどり")
-                        .kind(MessageDialogKind::Error)
-                        .show(|_| {});
-                }
+                app.dialog()
+                    .message(format!(
+                        "雨やどり v{}\n更新情報を確認できませんでした。\nトレイの「アップデートを確認…」から再確認できます。\n\n{e}",
+                        app.package_info().version
+                    ))
+                    .title(if manual { "バージョン確認" } else { "起動時のバージョン確認" })
+                    .kind(MessageDialogKind::Error)
+                    .show(|_| {});
             }
         }
     });

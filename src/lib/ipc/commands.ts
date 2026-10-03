@@ -14,6 +14,9 @@ export const resumeTimer = (): Promise<void> => invoke('resume');
 /** 起動時に設定を取得。 */
 export const getConfig = (): Promise<AppConfig> => invoke('get_config');
 
+/** 実行中のアプリのバージョンを取得。 */
+export const getAppVersion = (): Promise<string> => invoke('get_app_version');
+
 /** 設定を更新し永続化。 */
 export const updateConfig = (cfg: AppConfig): Promise<void> => invoke('update_config', { cfg });
 

@@ -4,6 +4,16 @@
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-10-03
+
+### 追加
+- 起動約10秒後に現在のバージョンと更新確認の結果を表示。最新版の場合も表示し、確認できなかった場合は再確認方法を案内
+- 設定画面・トレイメニュー・トレイのツールチップに実行中のバージョンを表示
+- リリース時に前回配布版との公開鍵の一致、更新 URL、Windows・Mac の配布ファイルの署名を自動検証
+
+### 変更
+- 更新確認のタイムアウトを30秒に設定
+
 ## [1.1.0] - 2026-10-03
 
 ### 追加
@@ -61,5 +71,6 @@
 - macOS の全画面共存・クリックスルー切替は実機での合否確認が未了（実装済み・検証手順は `docs/macos-fullscreen-gate.md`）
 - 背景静止画（モードA のフォールバック）はプレースホルダ
 
+[1.1.1]: https://github.com/katusaburou/Rainbreak/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/katusaburou/Rainbreak/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/katusaburou/Rainbreak/releases/tag/v1.0.0
