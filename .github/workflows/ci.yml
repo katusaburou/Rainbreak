@@ -69,8 +69,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: node tools/gen-assets.mjs
       - run: pnpm tauri icon app-icon.png
-      - run: pnpm run build
-      - run: cargo build --manifest-path src-tauri/Cargo.toml
+      # JS / Rust の Tauri バージョン整合性も検証する（フロントは beforeBuildCommand でビルド）。
+      - run: pnpm exec tauri build --debug --no-bundle "--" --locked
       # 実ディスプレイが必要なキャプチャ疎通以外のシェル単体テスト。
       - run: cargo test --locked --manifest-path src-tauri/Cargo.toml -- --skip commands::tests::capture_returns_jpeg_data_url
 
