@@ -137,3 +137,14 @@ test('incoming leaves increase with progress and respect the translucent opacity
 	assert.equal(f.surface.style.opacity, '1');
 	f.renderer.destroy();
 });
+
+test('reduced motion does not repaint on intensity changes while hidden', () => {
+	const f = fixture(true);
+	f.renderer.setIntensity(1);
+	f.renderer.start();
+	f.visibility('hidden');
+	f.renderer.setIntensity(0.5);
+	f.renderer.setIntensity(1);
+	assert.equal(f.frames.size, 0);
+	f.renderer.destroy();
+});

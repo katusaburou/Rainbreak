@@ -261,7 +261,8 @@
 				p === 'clearing' ||
 				p === 'finished'
 			) {
-				const previewRemaining = params.has('remaining') ? Number(params.get('remaining')) : undefined;
+				const parsed = Number(params.get('remaining'));
+				const previewRemaining = params.has('remaining') && Number.isFinite(parsed) ? parsed : undefined;
 				applyPhase(p, params.get('last') === '1', previewRemaining);
 			}
 		}

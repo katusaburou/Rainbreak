@@ -51,7 +51,7 @@ export class AutumnRenderer {
 	setIntensity(value: number): void {
 		this.intensity = Math.min(1, Math.max(0, value));
 		this.applyOpacity();
-		if (this.reducedMotion && this.running) this.draw();
+		if (this.reducedMotion && this.running && document.visibilityState !== 'hidden') this.draw();
 	}
 
 	setMaxOpacity(value: number, fadeMs = 250): void {
