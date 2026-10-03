@@ -4,11 +4,19 @@
 
 ## [Unreleased]
 
-## [1.2.0] - 未リリース
+## [1.2.0] - 2026-10-03
 
 ### 追加
 - 設定の「休憩の風景」から選べる紅葉モード。赤・橙・黄のもみじが揺れながら舞い落ち、予兆から休憩、秋の余韻へつながる無音の演出。Skip／Esc・自動停止・動きを減らす設定に対応し、従来の設定では通り雨を維持
 - 紅葉の背景と設定画面を切り替えるダーク／ホワイトモード。選択を保存し、予兆の透過・終了時のフェードを維持。ブラウザプレビューには比較用の切替ボタンを追加
+
+### 変更
+- Tauri の JavaScript API・CLI と Rust 本体を 2.12 系へ更新し、プラグインと依存関係を更新。ビルドに必要な Rust の最小バージョンを 1.90 に変更
+- 起動時の自動更新確認で最新版だった場合は通知を表示せず、手動確認時のみ現在のバージョンと確認結果を表示
+
+### 修正
+- 紅葉の非表示中は描画を停止し、「動きを減らす」設定時も表示再開に対応。終了時のフェード時間を維持
+- リリース検証の再実行時も対象版自身を除外して前回公開版との更新署名鍵の互換性を確認
 
 ## [1.1.1] - 2026-10-03
 
@@ -77,6 +85,8 @@
 - macOS の全画面共存・クリックスルー切替は実機での合否確認が未了（実装済み・検証手順は `docs/macos-fullscreen-gate.md`）
 - 背景静止画（モードA のフォールバック）はプレースホルダ
 
+[Unreleased]: https://github.com/katusaburou/Rainbreak/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/katusaburou/Rainbreak/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/katusaburou/Rainbreak/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/katusaburou/Rainbreak/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/katusaburou/Rainbreak/releases/tag/v1.0.0
